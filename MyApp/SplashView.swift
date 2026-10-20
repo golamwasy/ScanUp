@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The intro shown once when the app starts: the icon's radar drawn in motion. Rings spread out, a plane rises through
 /// them, an orange dot flies a lap round the outer ring, and the name settles in. It always uses the dark night
-/// colours of the icon, in light mode as well, and it starts on the same navy as the system's launch screen so there
+/// colours of the icon, in light mode as well, and it starts on the same graphite as the system's launch screen so there
 /// is no flash between them.
 struct SplashView: View {
     /// Called when the intro has played and the app can fade in.
@@ -14,8 +14,8 @@ struct SplashView: View {
     @State private var sweep = 0.0
     @State private var orbit = 0.0
 
-    private static let night = Color(red: 0.012, green: 0.04, blue: 0.17)
-    private static let glow = Color(red: 0.10, green: 0.35, blue: 0.85)
+    private static let night = Color(red: 0.055, green: 0.055, blue: 0.06)
+    private static let glow = Color(red: 0.25, green: 0.50, blue: 0.95)
     private static let sky = Color(red: 0.36, green: 0.76, blue: 1.0)
     private static let ember = Color(red: 1.0, green: 0.62, blue: 0.15)
     private static let markSize: CGFloat = 220
@@ -25,7 +25,7 @@ struct SplashView: View {
     var body: some View {
         ZStack {
             Self.night
-            RadialGradient(colors: [Self.glow.opacity(ringsOut ? 0.45 : 0), .clear], center: .init(x: 0.5, y: 0.42),
+            RadialGradient(colors: [Self.glow.opacity(ringsOut ? 0.10 : 0), .clear], center: .init(x: 0.5, y: 0.42),
                            startRadius: 0, endRadius: 420)
             VStack(spacing: 40) {
                 mark.frame(width: Self.markSize, height: Self.markSize)
@@ -50,7 +50,7 @@ struct SplashView: View {
                     .frame(width: size, height: size)
                     .scaleEffect(ringsOut ? 1 : 0.4)
                     .opacity(ringsOut ? 1 : 0)
-                    .animation(.easeOut(duration: 0.8).delay(Double(2 - index) * 0.12), value: ringsOut)
+                    .animation(.easeOut(duration: 0.6).delay(Double(2 - index) * 0.08), value: ringsOut)
             }
             Circle()
                 .fill(AngularGradient(stops: [.init(color: .clear, location: 0),
@@ -120,20 +120,19 @@ struct SplashView: View {
             ringsOut = true
             planeUp = true
             wordIn = true
-            orbit = 0
-            try? await Task.sleep(for: .seconds(0.9))
+            try? await Task.sleep(for: .seconds(0.7))
             onFinished()
             return
         }
         ringsOut = true
-        withAnimation(.easeInOut(duration: 1.7)) { sweep = 1 }
+        withAnimation(.easeInOut(duration: 1.2)) { sweep = 1 }
+        try? await Task.sleep(for: .milliseconds(100))
+        withAnimation(.spring(duration: 0.7, bounce: 0.25)) { planeUp = true }
         try? await Task.sleep(for: .milliseconds(150))
-        withAnimation(.spring(duration: 0.9, bounce: 0.25)) { planeUp = true }
-        try? await Task.sleep(for: .milliseconds(200))
-        withAnimation(.easeInOut(duration: 1.2)) { orbit = 1 }
-        try? await Task.sleep(for: .milliseconds(350))
-        withAnimation(.smooth(duration: 0.7)) { wordIn = true }
-        try? await Task.sleep(for: .milliseconds(1100))
+        withAnimation(.easeInOut(duration: 0.9)) { orbit = 1 }
+        try? await Task.sleep(for: .milliseconds(250))
+        withAnimation(.smooth(duration: 0.5)) { wordIn = true }
+        try? await Task.sleep(for: .milliseconds(800))
         onFinished()
     }
 }

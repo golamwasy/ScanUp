@@ -43,7 +43,7 @@ struct RootView: View {
         .tint(Theme.accent)
         .overlay {
             if showSplash {
-                SplashView { withAnimation(.easeInOut(duration: 0.5)) { showSplash = false } }
+                SplashView { withAnimation(.easeInOut(duration: 0.4)) { showSplash = false } }
                     .transition(.opacity.combined(with: .scale(scale: 1.06)))
             }
         }

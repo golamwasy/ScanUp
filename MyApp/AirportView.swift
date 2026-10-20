@@ -5,6 +5,7 @@ struct AirportView: View {
     let openSettingsTab: () -> Void
 
     private var feed: Feed { store.ground }
+    @State private var selectedID: String?
 
     var body: some View {
         ScrollView {
@@ -94,7 +95,7 @@ struct AirportView: View {
                             ? String(localized: "The backup data source shows few aircraft on the ground, so this may be incomplete. Try again in a few minutes.")
                             : String(localized: "No aircraft are being tracked on the ground at this airport right now. Parked aircraft with their transponders off do not appear."))
         } else {
-            AircraftList(aircraft: feed.aircraft, interact: store.noteInteraction)
+            AircraftList(aircraft: feed.aircraft, selection: $selectedID, interact: store.noteInteraction)
         }
     }
 }

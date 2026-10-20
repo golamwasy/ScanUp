@@ -3,6 +3,8 @@ import SwiftUI
 struct AircraftCard: View {
     let aircraft: Aircraft
     let isExpanded: Bool
+    /// Picked on the radar or by a tap: drawn with an outline.
+    var isSelected = false
     let toggle: () -> Void
 
     var body: some View {
@@ -16,6 +18,13 @@ struct AircraftCard: View {
             }
             .padding(14)
             .cardBackground()
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
+                    .strokeBorder(Theme.accent, lineWidth: 1.5)
+                    .opacity(isSelected ? 1 : 0)
+            )
+            .shadow(color: Theme.accent.opacity(isSelected ? 0.3 : 0), radius: 12)
+            .animation(.snappy, value: isSelected)
             .contentShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
         }
         .buttonStyle(PressableCardStyle())

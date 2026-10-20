@@ -183,6 +183,8 @@ struct ProblemCard: View {
 /// Cards for a list of aircraft, with one expanded at a time or several, as the reader chooses.
 struct AircraftList: View {
     let aircraft: [Aircraft]
+    /// The picked aircraft, shared with the radar. Picking one opens its card.
+    @Binding var selection: String?
     /// Called when a card is tapped, so the app knows someone is using it.
     var interact: () -> Void = {}
     @State private var expanded: Set<String> = []
@@ -190,16 +192,29 @@ struct AircraftList: View {
     var body: some View {
         LazyVStack(spacing: 12) {
             ForEach(aircraft) { item in
-                AircraftCard(aircraft: item, isExpanded: expanded.contains(item.id)) {
+                AircraftCard(aircraft: item, isExpanded: expanded.contains(item.id), isSelected: selection == item.id) {
                     interact()
                     withAnimation(Theme.spring) {
-                        if expanded.contains(item.id) { expanded.remove(item.id) } else { expanded.insert(item.id) }
+                        if expanded.contains(item.id) {
+                            expanded.remove(item.id)
+                            if selection == item.id { selection = nil }
+                        } else {
+                            expanded.insert(item.id)
+                            selection = item.id
+                        }
                     }
                 }
+                .id(item.id)
                 .transition(.asymmetric(
                     insertion: .move(edge: .top).combined(with: .opacity),
                     removal: .opacity.combined(with: .scale(scale: 0.92))))
             }
+        }
+        .onChange(of: selection) { _, picked in
+            if let picked, !expanded.contains(picked) { withAnimation(Theme.spring) { _ = expanded.insert(picked) } }
+        }
+        .onChange(of: aircraft.map(\.id)) { _, ids in
+            if let picked = selection, !ids.contains(picked) { selection = nil }
         }
         .animation(Theme.spring, value: aircraft.map(\.id))
     }

@@ -14,16 +14,17 @@ extension Color {
 }
 
 enum Theme {
+    // Light mode is a pale sky. Dark mode is neutral graphite, so the blue of the radar and the buttons stands out.
     static let skyTop = Color(light: Color(red: 0.80, green: 0.90, blue: 1.0),
-                              dark: Color(red: 0.03, green: 0.06, blue: 0.15))
+                              dark: Color(red: 0.055, green: 0.055, blue: 0.06))
     static let skyBottom = Color(light: Color(red: 0.96, green: 0.98, blue: 1.0),
-                                 dark: Color(red: 0.07, green: 0.13, blue: 0.29))
+                                 dark: Color(red: 0.105, green: 0.105, blue: 0.115))
     static let skyGlow = Color(light: Color(red: 0.45, green: 0.70, blue: 1.0).opacity(0.55),
-                               dark: Color(red: 0.10, green: 0.35, blue: 0.85).opacity(0.38))
+                               dark: Color.white.opacity(0.07))
     static let accent = Color(light: Color(red: 0.0, green: 0.44, blue: 0.86),
                               dark: Color(red: 0.36, green: 0.76, blue: 1.0))
-    static let card = Color(light: Color.white.opacity(0.88), dark: Color.white.opacity(0.08))
-    static let cardBorder = Color(light: Color.black.opacity(0.06), dark: Color.white.opacity(0.12))
+    static let card = Color(light: Color.white.opacity(0.88), dark: Color.white.opacity(0.07))
+    static let cardBorder = Color(light: Color.black.opacity(0.06), dark: Color.white.opacity(0.10))
     static let warning = Color(light: Color(red: 0.80, green: 0.42, blue: 0.0),
                                dark: Color(red: 1.0, green: 0.70, blue: 0.30))
     static let positive = Color(light: Color(red: 0.05, green: 0.55, blue: 0.30),

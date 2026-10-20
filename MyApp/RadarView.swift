@@ -9,6 +9,9 @@ struct RadarView: View {
     /// When the aircraft were reported. Planes drift along their track from then, until the next refresh.
     let updatedAt: Date?
     let heading: Double?
+    /// The aircraft picked by a tap, on the radar or in the list. Its plane is drawn larger, inside a ring.
+    var selectedID: String?
+    var onSelect: (String) -> Void = { _ in }
     @Environment(\.accessibilityReduceMotion) private var reduceMotionSetting
     /// Reduce Motion, or Low Power Mode: the sweep, the ping and the drift are decoration, so they stop.
     private var reduceMotion: Bool { reduceMotionSetting || ProcessInfo.processInfo.isLowPowerModeEnabled }
@@ -51,6 +54,7 @@ struct RadarView: View {
             }
             .animation(.smooth(duration: 0.25), value: heading)
             .animation(.smooth(duration: 0.8), value: aircraft)
+            .animation(.snappy, value: selectedID)
             .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
         }
         .aspectRatio(1, contentMode: .fit)
@@ -123,23 +127,37 @@ struct RadarView: View {
         }
     }
 
-    /// An aircraft: a small plane pointing along its track, or a dot when the track is unknown.
+    /// An aircraft: a small plane pointing along its track, or a dot when the track is unknown. A tap picks it.
     private func plane(for item: Aircraft, now: Date, radius: CGFloat, facing: Double) -> some View {
         let spot = item.projected(after: updatedAt.map { now.timeIntervalSince($0) } ?? 0)
         let angle = Compass.relative(bearing: spot.bearing, heading: facing) * .pi / 180
         let reach = min(1, spot.distance / Double(max(radiusMeters, 1))) * Double(radius - 14)
-        return Group {
-            if let track = item.headingDeg {
-                // The symbol points right, so it turns a quarter back to point at the top for a track of north.
-                Image(systemName: "airplane")
-                    .font(.system(size: 15, weight: .bold))
-                    .rotationEffect(.degrees(Double(track) - facing - 90))
-            } else {
-                Circle().frame(width: 9, height: 9)
+        let isSelected = item.id == selectedID
+        return ZStack {
+            if isSelected {
+                Circle().fill(Theme.warning.opacity(0.2))
+                    .overlay(Circle().strokeBorder(Theme.warning, lineWidth: 1.5))
+                    .frame(width: 32, height: 32)
+                    .transition(.scale.combined(with: .opacity))
             }
+            Group {
+                if let track = item.headingDeg {
+                    // The symbol points right, so it turns a quarter back to point at the top for a track of north.
+                    Image(systemName: "airplane")
+                        .font(.system(size: 15, weight: .bold))
+                        .rotationEffect(.degrees(Double(track) - facing - 90))
+                } else {
+                    Circle().frame(width: 9, height: 9)
+                }
+            }
+            .foregroundStyle(Theme.warning)
+            .shadow(color: Theme.warning.opacity(0.7), radius: 4)
+            .scaleEffect(isSelected ? 1.25 : 1)
         }
-        .foregroundStyle(Theme.warning)
-        .shadow(color: Theme.warning.opacity(0.7), radius: 4)
+        // A finger needs more room than a 15 point plane.
+        .frame(width: 44, height: 44)
+        .contentShape(Circle())
+        .onTapGesture { onSelect(item.id) }
         .offset(x: sin(angle) * reach, y: -cos(angle) * reach)
         .transition(.scale.combined(with: .opacity))
     }
