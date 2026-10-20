@@ -215,9 +215,21 @@ struct SettingsView: View {
             Text("\(adsb.used) of \(adsb.dailyBudget) used in the last 24 hours")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // Only worth saying when the allowance is nearly used. There is no reset at midnight: each request stops
+            // counting 24 hours after it was made.
+            if adsb.isRunningLow, let nextFreeAt = adsb.nextFreeAt {
+                Label("Next one frees up \(Self.freeUpText(for: nextFreeAt))", systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(Theme.warning)
+            }
         }
         .padding(.vertical, 2)
         .animation(.smooth, value: adsb)
+    }
+
+    private static func freeUpText(for date: Date) -> String {
+        let time = date.formatted(date: .omitted, time: .shortened)
+        return Calendar.current.isDateInToday(date) ? String(localized: "at \(time)") : String(localized: "tomorrow at \(time)")
     }
 
     private func openSkyRow(_ openSky: Usage.OpenSky) -> some View {

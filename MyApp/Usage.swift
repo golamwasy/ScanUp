@@ -7,8 +7,11 @@ struct Usage: Decodable, Equatable {
         let used: Int
         let dailyBudget: Int
         let remaining: Int
-        /// The server counts its own requests from its last start, so this is when the count began.
+        /// When the server began counting its requests, so earlier ones are not in the number.
         let countedSince: Date
+        /// When the oldest counted request turns 24 hours old and stops counting, so the number goes down by one.
+        /// Absent when nothing is counted.
+        let nextFreeAt: Date?
 
         var fractionUsed: Double { min(1, Double(used) / Double(max(dailyBudget, 1))) }
         /// More than 70 % used: the server then asks the app to refresh less often.

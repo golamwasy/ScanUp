@@ -70,7 +70,7 @@ check(LocationFailure.reaction(to: URLError(.timedOut)) == .fail, "other errors 
 // MARK: What the server sends
 
 let usageJSON = #"{"adsb_lol":{"used":1,"daily_budget":500,"remaining":499,"counted_since":"2026-10-20T14:06:18.105730Z"},"opensky":{"enabled":true,"credits_remaining":1171,"checked_at":"2026-10-20T14:06:18.893864Z"}}"#
-let usageOffJSON = #"{"adsb_lol":{"used":420,"daily_budget":500,"remaining":80,"counted_since":"2026-10-20T14:06:18Z"},"opensky":{"enabled":false}}"#
+let usageOffJSON = #"{"adsb_lol":{"used":420,"daily_budget":500,"remaining":80,"counted_since":"2026-10-20T14:06:18Z","next_free_at":"2026-10-21T14:07:00.5Z"},"opensky":{"enabled":false}}"#
 let nearbyJSON = #"{"updated_at":"2026-10-20T14:06:18.1Z","refresh_after_s":30,"source":"adsb.lol","aircraft":[{"id":"4601fb","callsign":"FIN1L","airline":"Finnair","distance_m":850,"bearing_deg":44,"elevation_deg":54,"on_ground":false}]}"#
 let airportJSON = #"{"updated_at":"2026-10-20T14:06:18.1Z","refresh_after_s":60,"aircraft":[]}"#
 
@@ -84,6 +84,7 @@ MainActor.assumeIsolated {
         let second = try BackendClient.decode(Usage.self, from: Data(usageOffJSON.utf8))
         check(!second.opensky.enabled && second.opensky.creditsRemaining == nil, "opensky not set up")
         check(second.adsbLol.isRunningLow && close(second.adsbLol.fractionUsed, 0.84), "420 of 500 is low")
+        check(second.adsbLol.nextFreeAt != nil && usage.adsbLol.nextFreeAt == nil, "when the next request frees up is optional")
 
         let nearby = try BackendClient.decode(NearbyResponse.self, from: Data(nearbyJSON.utf8))
         check(nearby.refreshAfterS == 30 && nearby.aircraft.count == 1 && nearby.aircraft[0].airline == "Finnair", "nearby answer")
