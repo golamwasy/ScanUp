@@ -35,17 +35,13 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 self.continuation = continuation
-                timeout = Task {
-                    try? await Task.sleep(for: .seconds(12))
-                    guard !Task.isCancelled else { return }
-                    finish(.failure(ScanError.message(String(localized: "Could not find your location. Try again outdoors."))))
-                }
                 if Task.isCancelled {
                     finish(.failure(CancellationError()))
                 } else if manager.authorizationStatus == .notDetermined {
+                    // The wait for a fix starts once the person has answered the permission prompt.
                     manager.requestWhenInUseAuthorization()
                 } else {
-                    manager.requestLocation()
+                    requestFix()
                 }
             }
         } onCancel: {
@@ -53,12 +49,22 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
         }
     }
 
+    private func requestFix() {
+        timeout?.cancel()
+        timeout = Task {
+            try? await Task.sleep(for: .seconds(12))
+            guard !Task.isCancelled else { return }
+            finish(.failure(ScanError.message(String(localized: "Could not find your location. Try again outdoors."))))
+        }
+        manager.requestLocation()
+    }
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorization = manager.authorizationStatus
         guard continuation != nil else { return }
         switch authorization {
         case .authorizedAlways, .authorizedWhenInUse:
-            manager.requestLocation()
+            requestFix()
         case .denied, .restricted:
             finish(.failure(ScanError.message(String(localized: "Location access is off. Allow it in Settings to see aircraft near you."))))
         default:
