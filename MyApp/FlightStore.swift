@@ -72,7 +72,6 @@ final class FlightStore {
     private(set) var usage: Usage?
     private(set) var isLoadingUsage = false
     private(set) var usageError: String?
-    var settingsMessage: String?
     var settingsError: String?
 
     var radiusKm: Double = {
@@ -238,7 +237,6 @@ final class FlightStore {
     }
 
     func saveConnection(address: String, token: String) -> Bool {
-        settingsMessage = nil
         settingsError = nil
         do {
             let url = try BackendConfiguration.validatedURL(address)
@@ -252,7 +250,6 @@ final class FlightStore {
             connectionTest = .idle
             nearby.problem = nil
             ground.problem = nil
-            settingsMessage = String(localized: "Saved securely on this iPhone.")
             return true
         } catch {
             settingsError = error.localizedDescription

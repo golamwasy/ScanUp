@@ -54,18 +54,19 @@ struct AircraftCard: View {
             Chip(text: aircraft.isMoving ? String(localized: "Taxiing") : String(localized: "Stopped"),
                  tint: aircraft.isMoving ? Theme.warning : Theme.positive)
         } else if let altitude = aircraft.altitudeFt {
+            // The same type sizes as the two lines on the left, so each line sits level with its neighbour.
             VStack(alignment: .trailing, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text(altitude.formatted(.number))
-                        .font(.system(.title3, design: .rounded, weight: .bold))
+                        .font(.headline)
                         .monospacedDigit()
                         .contentTransition(.numericText())
                     Text("ft")
-                        .font(.footnote.weight(.semibold))
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 Text("altitude")
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             .animation(.smooth, value: altitude)
