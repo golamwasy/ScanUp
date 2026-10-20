@@ -62,6 +62,10 @@ final class FlightStore {
     private(set) var connectionTest = ConnectionTest.idle
     /// Auto-refresh stopped because nobody touched the app for a while. Any touch starts it again.
     private(set) var isPaused = false
+    /// What is left of each data source's allowance, as the server last reported it.
+    private(set) var usage: Usage?
+    private(set) var isLoadingUsage = false
+    private(set) var usageError: String?
     var settingsMessage: String?
     var settingsError: String?
 
@@ -69,7 +73,12 @@ final class FlightStore {
         let stored = UserDefaults.standard.double(forKey: radiusKey)
         return radiusRange.contains(stored) ? stored : defaultRadiusKm
     }() {
-        didSet { UserDefaults.standard.set(radiusKm, forKey: Self.radiusKey) }
+        didSet {
+            UserDefaults.standard.set(radiusKm, forKey: Self.radiusKey)
+            // The list on screen was found for another distance, so it is no longer an answer. Going back to
+            // Overhead then loads the new one, with the header and radar already at the new distance.
+            if radiusKm != oldValue { nearby = Feed() }
+        }
     }
 
     var radiusMeters: Int { Int((radiusKm * 1000).rounded()) }
@@ -93,11 +102,14 @@ final class FlightStore {
         guard isConfigurationLoaded, !nearby.isLoading else { return Self.interval(nil) }
         nearby.isLoading = true
         defer { nearby.isLoading = false }
+        let requestedRadius = radiusMeters
         do {
             let (configuration, position) = try await prepare()
             let response = try await client.nearby(latitude: position.coordinate.latitude,
                                                    longitude: position.coordinate.longitude,
-                                                   radiusMeters: radiusMeters, configuration: configuration)
+                                                   radiusMeters: requestedRadius, configuration: configuration)
+            // The distance was changed while this was on its way, so the answer is for the wrong area.
+            guard requestedRadius == radiusMeters else { return Self.interval(nil) }
             nearby.aircraft = response.aircraft
             nearby.updatedAt = Date()
             nearby.problem = nil
@@ -150,6 +162,12 @@ final class FlightStore {
             return .seconds(min(longestServerWait, max(defaultInterval, seconds)))
         }
         if error is StoreError { return interval(nil) }
+        if case LocationError.denied = error { return interval(nil) }
+        if error is LocationError {
+            // No position yet is usually over in seconds, so try again soon: 5, 10, then 15 seconds.
+            failures += 1
+            return .seconds(min(defaultInterval, 5 * Double(failures)))
+        }
         failures += 1
         return .seconds(min(longestBackOff, defaultInterval * pow(2, Double(failures - 1))))
     }
@@ -176,7 +194,7 @@ final class FlightStore {
     private func problem(for error: Error) -> FeedProblem {
         switch error {
         case StoreError.notConfigured: .notConfigured
-        case StoreError.locationOff: .locationOff
+        case StoreError.locationOff, LocationError.denied: .locationOff
         default: .failed(error.localizedDescription)
         }
     }
@@ -201,6 +219,20 @@ final class FlightStore {
         } catch {
             settingsError = error.localizedDescription
             return false
+        }
+    }
+
+    /// Asks the server what is left of each allowance. Keeps the last answer if the server cannot be reached.
+    func refreshUsage() async {
+        guard let configuration, !isLoadingUsage else { return }
+        isLoadingUsage = true
+        defer { isLoadingUsage = false }
+        do {
+            usage = try await client.usage(configuration: configuration)
+            usageError = nil
+        } catch is CancellationError {
+        } catch {
+            usageError = error.localizedDescription
         }
     }
 

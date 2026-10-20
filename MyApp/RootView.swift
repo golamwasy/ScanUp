@@ -40,10 +40,13 @@ struct RootView: View {
         }
         .tint(Theme.accent)
         .task { await store.start() }
-        .onChange(of: wantsCompass, initial: true) { _, wanted in
-            if wanted { store.location.startHeading() } else { store.location.stopHeading() }
+        // The position stays warm while the app is open, and the compass runs only on the Overhead radar.
+        .onChange(of: scenePhase != .background, initial: true) { _, open in store.location.setUpdatesActive(open) }
+        .onChange(of: wantsCompass, initial: true) { _, wanted in store.location.setCompass(wanted) }
+        .onChange(of: selection) { _, tab in
+            store.noteInteraction()
+            if tab == .settings { Task { await store.refreshUsage() } }
         }
-        .onChange(of: selection) { store.noteInteraction() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { store.noteInteraction() }
         }

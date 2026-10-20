@@ -1,13 +1,17 @@
 import CoreLocation
 
-/// Finds the phone's position once, when the app asks for it. Nothing runs in the background.
+/// Finds the phone's position for the app, and reads the compass. Both run only while the app is open.
 @MainActor @Observable
 final class LocationFetcher: NSObject, CLLocationManagerDelegate {
+    /// A position older than this is not used to answer a request, such as the cached one Core Location hands out
+    /// first when updates start.
+    private static let maxFixAge: TimeInterval = 60
+
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<CLLocation, Error>?
     private var timeout: Task<Void, Never>?
     private var latest: CLLocation?
-    private var headingWanted = false
+    private var updatesWanted = false
 
     private(set) var authorization: CLAuthorizationStatus
     /// The direction the phone points, in degrees clockwise from north. Smoothed, and not wrapped at 360, so a dial
@@ -21,6 +25,7 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.distanceFilter = 50
     }
 
     /// Asks for "While Using" access the first time. Does nothing once the user has answered.
@@ -28,36 +33,39 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
         if manager.authorizationStatus == .notDetermined { manager.requestWhenInUseAuthorization() }
     }
 
-    /// Starts the compass. True north needs location updates as well, because the difference between magnetic and true
-    /// north depends on where you are (about 10 degrees in Finland). Both stop again with `stopHeading()`.
-    func startHeading() {
-        headingWanted = true
-        guard CLLocationManager.headingAvailable() else { return }
-        manager.headingFilter = 2
-        manager.startUpdatingHeading()
-        startLocationUpdates()
+    /// Keeps the position warm while the app is open, so a refresh finds one at once. Stopping and starting it for
+    /// every tab change made new requests fail while it was still getting going.
+    func setUpdatesActive(_ active: Bool) {
+        updatesWanted = active
+        if active {
+            startUpdatesIfPossible()
+        } else if continuation == nil {
+            manager.stopUpdatingLocation()
+        }
     }
 
-    func stopHeading() {
-        headingWanted = false
-        manager.stopUpdatingHeading()
-        // A fix that is being waited for would be cancelled too, so that stop waits for the answer.
-        if continuation == nil { manager.stopUpdatingLocation() }
-        heading = nil
+    /// The compass. True north needs location updates as well, because the difference between magnetic and true
+    /// north depends on where you are (about 10 degrees in Finland).
+    func setCompass(_ on: Bool) {
+        if on {
+            guard CLLocationManager.headingAvailable() else { return }
+            manager.headingFilter = 2
+            manager.startUpdatingHeading()
+        } else {
+            manager.stopUpdatingHeading()
+            heading = nil
+        }
     }
 
-    private func startLocationUpdates() {
-        guard authorization == .authorizedWhenInUse || authorization == .authorizedAlways else { return }
-        manager.distanceFilter = 50
+    private func startUpdatesIfPossible() {
+        guard updatesWanted, authorization == .authorizedWhenInUse || authorization == .authorizedAlways else { return }
         manager.startUpdatingLocation()
     }
 
     func current() async throws -> CLLocation {
         try Task.checkCancellation()
         if let latest, latest.horizontalAccuracy <= 200, abs(latest.timestamp.timeIntervalSinceNow) <= 30 { return latest }
-        if isDenied {
-            throw ScanError.message(String(localized: "Location access is off. Allow it in Settings to see aircraft near you."))
-        }
+        if isDenied { throw LocationError.denied }
         // A request that is still waiting is replaced by this one.
         finish(.failure(CancellationError()))
         return try await withTaskCancellationHandler {
@@ -82,20 +90,20 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
         timeout = Task {
             try? await Task.sleep(for: .seconds(12))
             guard !Task.isCancelled else { return }
-            finish(.failure(ScanError.message(String(localized: "Could not find your location. Try again outdoors."))))
+            finish(.failure(LocationError.timedOut))
         }
         manager.requestLocation()
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorization = manager.authorizationStatus
-        if headingWanted { startLocationUpdates() }
+        startUpdatesIfPossible()
         guard continuation != nil else { return }
         switch authorization {
         case .authorizedAlways, .authorizedWhenInUse:
             requestFix()
         case .denied, .restricted:
-            finish(.failure(ScanError.message(String(localized: "Location access is off. Allow it in Settings to see aircraft near you."))))
+            finish(.failure(LocationError.denied))
         default:
             break
         }
@@ -104,7 +112,8 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last,
               CLLocationCoordinate2DIsValid(location.coordinate),
-              location.horizontalAccuracy >= 0, location.horizontalAccuracy <= 1000 else { return }
+              location.horizontalAccuracy >= 0, location.horizontalAccuracy <= 1000,
+              abs(location.timestamp.timeIntervalSinceNow) <= Self.maxFixAge else { return }
         latest = location
         finish(.success(location))
     }
@@ -124,7 +133,16 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        finish(.failure(ScanError.message(String(localized: "Could not find your location. Try again outdoors."))))
+        switch LocationFailure.reaction(to: error) {
+        case .keepWaiting:
+            break
+        case .compassUnavailable:
+            heading = nil
+        case .denied:
+            finish(.failure(LocationError.denied))
+        case .fail:
+            finish(.failure(LocationError.unavailable))
+        }
     }
 
     private func finish(_ result: Result<CLLocation, Error>) {
@@ -132,7 +150,7 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
         timeout = nil
         let pending = continuation
         continuation = nil
-        if !headingWanted { manager.stopUpdatingLocation() }
+        if !updatesWanted { manager.stopUpdatingLocation() }
         pending?.resume(with: result)
     }
 }

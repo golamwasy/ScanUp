@@ -179,8 +179,22 @@ final class BackendClient {
     private func post<Response: Decodable>(_ path: String, body: some Encodable, as type: Response.Type,
                                            configuration: BackendConfiguration) async throws -> Response {
         let data = try await perform(Self.makeRequest(configuration: configuration, path: path, body: body))
+        return try Self.decode(Response.self, from: data)
+    }
+
+    static func decode<Response: Decodable>(_ type: Response.Type, from data: Data) throws -> Response {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
+        // The backend writes times like 2026-10-20T14:06:18.105730Z, with fractions of a second.
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let text = try decoder.singleValueContainer().decode(String.self)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: text) { return date }
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: text) { return date }
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Not a date: \(text)"))
+        }
         do {
             return try decoder.decode(Response.self, from: data)
         } catch {
@@ -198,6 +212,12 @@ final class BackendClient {
                  configuration: BackendConfiguration) async throws -> AirportResponse {
         let body = AirportRequest(latitude: latitude, longitude: longitude)
         return try await post("v1/airport", body: body, as: AirportResponse.self, configuration: configuration)
+    }
+
+    /// What is left of each data source's allowance.
+    func usage(configuration: BackendConfiguration) async throws -> Usage {
+        let data = try await perform(Self.makeRequest(configuration: configuration, path: "v1/usage"))
+        return try Self.decode(Usage.self, from: data)
     }
 
     /// Checks the address and token. Sends no position.

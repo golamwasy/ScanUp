@@ -11,6 +11,7 @@ struct SettingsView: View {
             Form {
                 searchSection
                 serverSection
+                usageSection
                 locationSection
                 aboutSection
             }
@@ -18,6 +19,8 @@ struct SettingsView: View {
             .background(SkyBackground())
             .navigationTitle("Settings")
             .task(id: store.serverAddress) { address = store.serverAddress }
+            // Also loads when this screen first appears, and when a connection becomes available.
+            .task(id: store.configuration != nil) { await store.refreshUsage() }
         }
     }
 
@@ -69,6 +72,7 @@ struct SettingsView: View {
                 if store.saveConnection(address: address, token: token) {
                     token = ""
                     address = store.serverAddress
+                    Task { await store.refreshUsage() }
                 }
             }
             .disabled(address.isEmpty)
@@ -112,6 +116,85 @@ struct SettingsView: View {
                 .foregroundStyle(Theme.warning)
                 .multilineTextAlignment(.trailing)
         }
+    }
+
+    private var usageSection: some View {
+        Section {
+            if let usage = store.usage {
+                adsbRow(usage.adsbLol)
+                openSkyRow(usage.opensky)
+            } else if store.isLoadingUsage {
+                HStack {
+                    Text("Checking…").foregroundStyle(.secondary)
+                    Spacer()
+                    ProgressView()
+                }
+            } else if store.configuration == nil {
+                Text("Save the server address and token to see this.").foregroundStyle(.secondary)
+            }
+            if let error = store.usageError {
+                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(Theme.warning)
+            }
+        } header: {
+            HStack {
+                Text("Requests left")
+                Spacer()
+                Button {
+                    Task { await store.refreshUsage() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(store.configuration == nil || store.isLoadingUsage)
+                .accessibilityLabel("Refresh")
+            }
+        } footer: {
+            if let since = store.usage?.adsbLol.countedSince {
+                Text("ADSB.lol is counted by your server from \(since.formatted(date: .omitted, time: .shortened)). Requests before that, or from other devices on your network address, are not included. OpenSky’s number comes from OpenSky itself.")
+            } else {
+                Text("ADSB.lol is counted by your server. OpenSky’s number comes from OpenSky itself.")
+            }
+        }
+    }
+
+    private func adsbRow(_ adsb: Usage.AdsbLol) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("ADSB.lol")
+                Text("main source").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Text("\(adsb.remaining) left")
+                    .font(.body.weight(.semibold))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .foregroundStyle(adsb.isRunningLow ? Theme.warning : .primary)
+            }
+            ProgressView(value: adsb.fractionUsed)
+                .tint(adsb.isRunningLow ? Theme.warning : Theme.accent)
+            Text("\(adsb.used) of \(adsb.dailyBudget) used in the last 24 hours")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
+        .animation(.smooth, value: adsb)
+    }
+
+    private func openSkyRow(_ openSky: Usage.OpenSky) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("OpenSky")
+            Text("backup").font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            if !openSky.enabled {
+                Text("Not set up").foregroundStyle(.secondary)
+            } else if let credits = openSky.creditsRemaining {
+                Text("\(credits.formatted()) credits left")
+                    .font(.body.weight(.semibold))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+            } else {
+                Text("Unknown").foregroundStyle(.secondary)
+            }
+        }
+        .animation(.smooth, value: openSky)
     }
 
     private var locationSection: some View {
