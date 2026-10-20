@@ -261,8 +261,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "ScanUp-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = ScanUp;
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "ScanUp shares your changing location with your configured server while the screen is locked. Sharing and location tracking stop from midnight to 9 am Finnish time.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ScanUp shares your location with your configured server so it can find nearby aircraft and send Telegram alerts.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ScanUp uses your location while the app is open to show the aircraft above you and the aircraft on the ground at the nearest airport. It is sent to your own server and is not stored.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -308,8 +307,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "ScanUp-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = ScanUp;
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "ScanUp shares your changing location with your configured server while the screen is locked. Sharing and location tracking stop from midnight to 9 am Finnish time.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ScanUp shares your location with your configured server so it can find nearby aircraft and send Telegram alerts.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ScanUp uses your location while the app is open to show the aircraft above you and the aircraft on the ground at the nearest airport. It is sent to your own server and is not stored.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
