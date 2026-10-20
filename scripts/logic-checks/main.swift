@@ -124,5 +124,25 @@ MainActor.assumeIsolated {
   }
 }
 
+do {
+    // One failed refresh after a good answer keeps the list and only changes the status line. A few in a row, or a
+    // failure before any answer, take over the screen. Problems the person must fix always do.
+    var feed = Feed()
+    feed.problem = .failed("x")
+    check(feed.showsProblem, "a failure before any answer shows the problem")
+    feed.updatedAt = Date()
+    feed.failures = 1
+    check(!feed.showsProblem, "one failure after an answer keeps the list")
+    feed.failures = 2
+    check(!feed.showsProblem, "two failures keep the list")
+    feed.failures = Feed.failuresBeforeProblem
+    check(feed.showsProblem, "three failures in a row show the problem")
+    feed.failures = 0
+    feed.problem = .locationOff
+    check(feed.showsProblem, "location off always shows")
+    feed.problem = nil
+    check(!feed.showsProblem, "no problem, nothing to show")
+}
+
 print(failures == 0 ? "all checks passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

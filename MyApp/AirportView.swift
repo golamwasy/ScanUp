@@ -79,7 +79,7 @@ struct AirportView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let problem = feed.problem, feed.aircraft.isEmpty {
+        if feed.showsProblem, let problem = feed.problem, feed.aircraft.isEmpty {
             ProblemCard(problem: problem, openSettingsTab: openSettingsTab) {
                 Task { await store.refreshGround() }
             }

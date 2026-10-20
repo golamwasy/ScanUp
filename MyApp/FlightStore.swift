@@ -1,27 +1,9 @@
 import CoreLocation
 import Foundation
 
-/// What a tab shows when it cannot list aircraft.
-enum FeedProblem: Equatable {
-    case notConfigured
-    case locationOff
-    /// Precise Location is off, so positions are too rough.
-    case locationApproximate
-    case failed(String)
-}
-
 private enum StoreError: Error {
     case notConfigured
     case locationOff
-}
-
-/// The aircraft of one tab, with the state of its latest refresh.
-struct Feed {
-    var aircraft: [Aircraft] = []
-    var updatedAt: Date?
-    var isLoading = false
-    var problem: FeedProblem?
-    var hasLoaded: Bool { updatedAt != nil }
 }
 
 enum ConnectionTest: Equatable {
@@ -132,13 +114,16 @@ final class FlightStore {
             nearby.aircraft = Self.unique(response.aircraft)
             nearby.updatedAt = Date()
             nearby.problem = nil
+            nearby.failures = 0
             nearbyFailures = 0
             return Self.interval(response.refreshAfterS)
         } catch is CancellationError {
             return Self.interval(nil)
         } catch {
             nearby.problem = problem(for: error)
-            return Self.backOff(after: error, failures: &nearbyFailures)
+            let wait = Self.backOff(after: error, failures: &nearbyFailures)
+            nearby.failures = nearbyFailures
+            return wait
         }
     }
 
@@ -169,13 +154,16 @@ final class FlightStore {
             ground.aircraft = Self.unique(response.aircraft)
             ground.updatedAt = Date()
             ground.problem = nil
+            ground.failures = 0
             groundFailures = 0
             return Self.interval(response.refreshAfterS)
         } catch is CancellationError {
             return Self.interval(nil)
         } catch {
             ground.problem = problem(for: error)
-            return Self.backOff(after: error, failures: &groundFailures)
+            let wait = Self.backOff(after: error, failures: &groundFailures)
+            ground.failures = groundFailures
+            return wait
         }
     }
 
@@ -204,8 +192,9 @@ final class FlightStore {
             failures += 1
             return .seconds(min(defaultInterval, 5 * Double(failures)))
         }
+        // A network hiccup is usually over quickly, so the first retry comes after 5 seconds, then 15, 30 and 60.
         failures += 1
-        return .seconds(min(longestBackOff, defaultInterval * pow(2, Double(failures - 1))))
+        return .seconds([5, 15, 30, longestBackOff][min(failures, 4) - 1])
     }
 
     /// A touch, scroll, tab change or return to the app. Starts auto-refresh again if it had paused.

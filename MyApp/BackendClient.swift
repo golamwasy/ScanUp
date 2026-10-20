@@ -101,8 +101,9 @@ final class BackendClient {
 
     init() {
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 15
-        configuration.timeoutIntervalForResource = 20
+        // The server may try its second aircraft source after the first one stalls, which takes up to about 20 seconds.
+        configuration.timeoutIntervalForRequest = 25
+        configuration.timeoutIntervalForResource = 30
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.httpShouldSetCookies = false
         session = URLSession(configuration: configuration, delegate: NoRedirectDelegate(), delegateQueue: nil)
@@ -111,7 +112,7 @@ final class BackendClient {
     static func makeRequest(configuration: BackendConfiguration, path: String,
                             body: (any Encodable)? = nil) throws -> URLRequest {
         var request = URLRequest(url: configuration.baseURL.appendingPathComponent(path),
-                                 cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
+                                 cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
         request.setValue("Bearer \(configuration.token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
