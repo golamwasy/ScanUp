@@ -17,6 +17,8 @@ struct RootView: View {
         let isReady: Bool
         let isConfigured: Bool
         let isPaused: Bool
+        /// Which fake location is in use, if any. A change starts the refresh loop again with the new position.
+        let testPlace: Int?
     }
 
     /// The compass runs only while the Overhead radar is on screen.
@@ -25,7 +27,7 @@ struct RootView: View {
     private var refreshKey: RefreshKey {
         RefreshKey(tab: selection, isActive: scenePhase == .active,
                    isReady: store.isConfigurationLoaded, isConfigured: store.configuration != nil,
-                   isPaused: store.isPaused)
+                   isPaused: store.isPaused, testPlace: store.testLocation?.id)
     }
 
     var body: some View {

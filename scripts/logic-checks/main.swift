@@ -145,5 +145,19 @@ do {
     check(!feed.showsProblem, "no problem, nothing to show")
 }
 
+do {
+    // The two fake places, from the user's map coordinates.
+    check(TestLocation.all.count == 2, "two fake places")
+    check(close(TestLocation.all[0].latitude, 60.317200, 1e-9) && close(TestLocation.all[0].longitude, 24.963300, 1e-9), "location 1 coordinates")
+    check(close(TestLocation.all[1].latitude, 60.171900, 1e-9) && close(TestLocation.all[1].longitude, 24.941400, 1e-9), "location 2 coordinates")
+    check(TestLocation.choice(1).name == "Location 2", "choice 1 is location 2")
+    check(TestLocation.choice(7).id == 0 && TestLocation.choice(-1).id == 0, "an unknown choice is location 1")
+    let position = TestLocation.choice(0).position
+    check(position.horizontalAccuracy == 5 && abs(position.timestamp.timeIntervalSinceNow) < 5, "the position is exact and fresh")
+    check(position.coordinate.latitude == 60.317200, "the position carries the coordinates")
+    check(TestLocation.choice(0).coordinatesText == "60.317200, 24.963300", "coordinates read with a dot")
+    check(TestLocation.all.allSatisfy { CLLocationCoordinate2DIsValid(CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)) }, "valid coordinates")
+}
+
 print(failures == 0 ? "all checks passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

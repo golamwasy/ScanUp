@@ -85,6 +85,23 @@ struct StatusLine: View {
     }
 }
 
+/// Shown while a fake location is in use, so a test is never mistaken for the real position.
+struct TestLocationNotice: View {
+    let place: TestLocation?
+
+    var body: some View {
+        Group {
+            if let place {
+                Label("Fake location: \(place.name)", systemImage: "location.slash.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.warning)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+        }
+        .animation(.snappy, value: place)
+    }
+}
+
 /// A message with an icon, used for empty lists and for problems.
 struct MessageCard: View {
     let systemImage: String

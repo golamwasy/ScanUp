@@ -16,6 +16,7 @@ struct SettingsView: View {
                 serverSection.listRowBackground(Theme.card)
                 usageSection.listRowBackground(Theme.card)
                 locationSection.listRowBackground(Theme.card)
+                testingSection.listRowBackground(Theme.card)
                 aboutSection.listRowBackground(Theme.card)
             }
             .scrollContentBackground(.hidden)
@@ -268,6 +269,47 @@ struct SettingsView: View {
         } footer: {
             Text("ScanUp sends your position to your server only when you open the app or refresh a list. Nothing is sent in the background, and the server does not store it.")
         }
+    }
+
+    /// A fixed place for trying the app without travelling.
+    private var testingSection: some View {
+        Section {
+            Toggle("Use a fake location", isOn: Bindable(store).useTestLocation.animation(.snappy))
+            if store.useTestLocation {
+                ForEach(TestLocation.all) { place in
+                    Button {
+                        store.testLocationIndex = place.id
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(place.name).foregroundStyle(.primary)
+                                Text(place.coordinatesText)
+                                    .font(.caption)
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if store.testLocationIndex == place.id {
+                                Image(systemName: "checkmark")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(Theme.accent)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(store.testLocationIndex == place.id ? .isSelected : [])
+                    .transition(.opacity)
+                }
+            }
+        } header: {
+            Text("Testing")
+        } footer: {
+            Text("Aircraft are looked up around this place instead of where you are. Turn it off to use your real position.")
+        }
+        .animation(.snappy, value: store.testLocationIndex)
+        .sensoryFeedback(.selection, trigger: store.testLocationIndex)
     }
 
     private var locationStatus: String {

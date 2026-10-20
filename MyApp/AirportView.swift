@@ -53,6 +53,7 @@ struct AirportView: View {
             StatusLine(summary: summary, feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
                 Task { await store.refreshGround() }
             }
+            TestLocationNotice(place: store.testLocation)
             if usesBackupSource {
                 Label("Backup data source. Aircraft on the ground may be missing.", systemImage: "exclamationmark.circle")
                     .font(.footnote)

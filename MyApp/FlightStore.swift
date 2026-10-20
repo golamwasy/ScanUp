@@ -72,6 +72,40 @@ final class FlightStore {
     }
 
     var radiusMeters: Int { Int((radiusKm * 1000).rounded()) }
+
+    private static let useTestLocationKey = "useTestLocation"
+    private static let testLocationKey = "testLocationIndex"
+
+    /// Use one of the fixed test places instead of the phone's position (see TestLocation).
+    var useTestLocation = UserDefaults.standard.bool(forKey: useTestLocationKey) {
+        didSet {
+            UserDefaults.standard.set(useTestLocation, forKey: Self.useTestLocationKey)
+            if useTestLocation != oldValue { positionSourceChanged() }
+        }
+    }
+
+    var testLocationIndex = TestLocation.choice(UserDefaults.standard.integer(forKey: testLocationKey)).id {
+        didSet {
+            UserDefaults.standard.set(testLocationIndex, forKey: Self.testLocationKey)
+            if testLocationIndex != oldValue, useTestLocation { positionSourceChanged() }
+        }
+    }
+
+    /// The place being used instead of the real position, or nil for the real one.
+    var testLocation: TestLocation? { useTestLocation ? TestLocation.choice(testLocationIndex) : nil }
+
+    /// The lists on screen were found around another position, so they are no longer an answer. The refresh loop then
+    /// loads the new ones.
+    private func positionSourceChanged() {
+        nearby = Feed()
+        nearby.isLoading = nearbyTask != nil
+        ground = Feed()
+        ground.isLoading = groundTask != nil
+        airport = nil
+        groundSource = nil
+        nearbyFailures = 0
+        groundFailures = 0
+    }
     var serverAddress: String { configuration?.baseURL.absoluteString ?? BackendConfiguration.suggestedURL }
 
     /// Loads the saved connection. Keychain can block while the phone restores protected data,
@@ -104,13 +138,14 @@ final class FlightStore {
     private func performNearby() async -> Duration {
         nearby.isLoading = true
         let requestedRadius = radiusMeters
+        let requestedPlace = testLocation
         do {
             let (configuration, position) = try await prepare()
             let response = try await client.nearby(latitude: position.coordinate.latitude,
                                                    longitude: position.coordinate.longitude,
                                                    radiusMeters: requestedRadius, configuration: configuration)
             // The distance was changed while this was on its way, so the answer is for the wrong area. Ask again soon.
-            guard requestedRadius == radiusMeters else { return .seconds(1) }
+            guard requestedRadius == radiusMeters, requestedPlace == testLocation else { return .seconds(1) }
             nearby.aircraft = Self.unique(response.aircraft)
             nearby.updatedAt = Date()
             nearby.problem = nil
@@ -144,11 +179,14 @@ final class FlightStore {
 
     private func performGround() async -> Duration {
         ground.isLoading = true
+        let requestedPlace = testLocation
         do {
             let (configuration, position) = try await prepare()
             let response = try await client.airport(latitude: position.coordinate.latitude,
                                                     longitude: position.coordinate.longitude,
                                                     configuration: configuration)
+            // The place was changed while this was on its way, so the answer is for the wrong position.
+            guard requestedPlace == testLocation else { return .seconds(1) }
             airport = response.airport
             groundSource = response.source
             ground.aircraft = Self.unique(response.aircraft)
@@ -212,6 +250,8 @@ final class FlightStore {
 
     private func prepare() async throws -> (BackendConfiguration, CLLocation) {
         guard let configuration else { throw StoreError.notConfigured }
+        // A fake location needs neither the GPS nor the permission.
+        if let testLocation { return (configuration, testLocation.position) }
         if location.isDenied { throw StoreError.locationOff }
         return (configuration, try await location.current())
     }

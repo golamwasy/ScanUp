@@ -52,6 +52,7 @@ struct OverheadView: View {
                 StatusLine(summary: summary, feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
                     Task { await store.refreshNearby() }
                 }
+                TestLocationNotice(place: store.testLocation)
             }
         }
         .frame(maxWidth: .infinity)
