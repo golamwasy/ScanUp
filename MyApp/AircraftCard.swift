@@ -69,14 +69,26 @@ struct AircraftCard: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Text("altitude")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                if let phase = aircraft.flightPhase {
+                    Label(phase.label, systemImage: phase.symbol)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                } else {
+                    Text("altitude")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
             .animation(.smooth, value: altitude)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(aircraft.isVeryLow ? Text("Flying low") : Text("Altitude \(Format.altitude(altitude))"))
+            .accessibilityLabel(accessibilityText(altitude: altitude))
         }
+    }
+
+    private func accessibilityText(altitude: Int) -> Text {
+        let height = aircraft.isVeryLow ? String(localized: "Flying low") : String(localized: "Altitude \(Format.altitude(altitude))")
+        guard let phase = aircraft.flightPhase else { return Text(height) }
+        return Text("\(phase.label). \(height)")
     }
 
     private var details: some View {

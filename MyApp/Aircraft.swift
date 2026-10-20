@@ -18,6 +18,8 @@ struct Aircraft: Decodable, Identifiable, Equatable {
     let distanceM: Int
     let bearingDeg: Int
     let elevationDeg: Int?
+    /// "landing" or "taking_off", decided by the backend from the airport nearby. Absent otherwise.
+    let phase: String?
     let onGround: Bool
 }
 
@@ -61,7 +63,35 @@ enum VerticalTrend {
     }
 }
 
+/// What a low aircraft near an airport is doing.
+enum FlightPhase {
+    case landing, takingOff
+
+    var label: String {
+        switch self {
+        case .landing: String(localized: "Landing")
+        case .takingOff: String(localized: "Taking off")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .landing: "arrow.down.right"
+        case .takingOff: "arrow.up.right"
+        }
+    }
+}
+
 extension Aircraft {
+    /// An unknown value from a newer backend counts as no phase.
+    var flightPhase: FlightPhase? {
+        switch phase {
+        case "landing": .landing
+        case "taking_off": .takingOff
+        default: nil
+        }
+    }
+
     /// The airline when known, otherwise the best identifier there is.
     var title: String {
         airline ?? callsign ?? registration ?? String(localized: "Unknown aircraft")

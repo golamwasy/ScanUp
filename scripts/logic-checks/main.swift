@@ -43,7 +43,7 @@ check(Aircraft.compassPoint(for: 359) == "N" && Aircraft.compassPoint(for: 90) =
 func plane(distance: Int, bearing: Int, speed: Int?, track: Int?) -> Aircraft {
     Aircraft(id: "a", callsign: nil, airline: nil, origin: nil, originCode: nil, destination: nil, destinationCode: nil,
              type: nil, registration: nil, altitudeFt: 3000, speedKt: speed, headingDeg: track, verticalRateFpm: nil,
-             distanceM: distance, bearingDeg: bearing, elevationDeg: nil, onGround: false)
+             distanceM: distance, bearingDeg: bearing, elevationDeg: nil, phase: nil, onGround: false)
 }
 let still = plane(distance: 1000, bearing: 90, speed: 200, track: 90).projected(after: 0)
 check(close(still.distance, 1000) && close(still.bearing, 90), "no time, no movement")
@@ -111,6 +111,13 @@ MainActor.assumeIsolated {
     check(below.heightFt == 0 && below.isVeryLow, "a negative altitude counts as zero and very low")
     let low = try BackendClient.decode(Aircraft.self, from: json("99"))
     let high = try BackendClient.decode(Aircraft.self, from: json("3700"))
+    func phaseJSON(_ phase: String) -> Data {
+        Data(#"{"id":"a","altitude_ft":900,"phase":"\#(phase)","distance_m":500,"bearing_deg":10,"on_ground":false}"#.utf8)
+    }
+    check(try BackendClient.decode(Aircraft.self, from: phaseJSON("landing")).flightPhase == .landing, "landing phase")
+    check(try BackendClient.decode(Aircraft.self, from: phaseJSON("taking_off")).flightPhase == .takingOff, "taking off phase")
+    check(try BackendClient.decode(Aircraft.self, from: phaseJSON("hovering")).flightPhase == nil, "an unknown phase is ignored")
+    check(try BackendClient.decode(Aircraft.self, from: json("900")).flightPhase == nil, "no phase when absent")
     check(low.isVeryLow && !high.isVeryLow && high.heightFt == 3700, "very low is under 100 ft")
   } catch {
     check(false, "decoding threw \(error)")
