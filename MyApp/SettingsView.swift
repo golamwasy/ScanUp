@@ -9,11 +9,12 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                searchSection
-                serverSection
-                usageSection
-                locationSection
-                aboutSection
+                // The same translucent cards as the lists, instead of the system's flat grey.
+                searchSection.listRowBackground(Theme.card)
+                serverSection.listRowBackground(Theme.card)
+                usageSection.listRowBackground(Theme.card)
+                locationSection.listRowBackground(Theme.card)
+                aboutSection.listRowBackground(Theme.card)
             }
             .scrollContentBackground(.hidden)
             .background(SkyBackground())

@@ -67,9 +67,10 @@ extension Aircraft {
         airline ?? callsign ?? registration ?? String(localized: "Unknown aircraft")
     }
 
-    /// Second line of a collapsed card.
+    /// Second line of a collapsed card: the flight number and where it is going. The aircraft type is in the details.
     var subtitle: String {
-        [airline == nil ? nil : callsign, type].compactMap { $0 }.joined(separator: " · ")
+        let route = originCode != nil && destinationCode != nil ? "\(originCode ?? "") → \(destinationCode ?? "")" : nil
+        return [airline == nil ? nil : callsign, route ?? (airline == nil ? type : nil)].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// Letters for the round badge, such as "SA" for Scandinavian Airlines.
@@ -150,9 +151,9 @@ enum Format {
     static func distance(_ meters: Int) -> String {
         if meters < 1000 { return "\(meters) m" }
         let kilometers = Double(meters) / 1000
-        return kilometers < 10
-            ? kilometers.formatted(.number.precision(.fractionLength(1))) + " km"
-            : kilometers.formatted(.number.precision(.fractionLength(0))) + " km"
+        // Whole distances read better without a decimal: "8 km", not "8,0 km".
+        let digits = kilometers < 10 && meters % 1000 != 0 ? 1 : 0
+        return kilometers.formatted(.number.precision(.fractionLength(digits))) + " km"
     }
 
     static func altitude(_ feet: Int) -> String {

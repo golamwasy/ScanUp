@@ -8,6 +8,8 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var store = FlightStore()
     @State private var selection = AppTab.overhead
+    /// The intro plays once per launch, while the first answer is already on its way.
+    @State private var showSplash = true
 
     private struct RefreshKey: Hashable {
         let tab: AppTab
@@ -39,6 +41,13 @@ struct RootView: View {
             }
         }
         .tint(Theme.accent)
+        .overlay {
+            if showSplash {
+                SplashView { withAnimation(.easeInOut(duration: 0.5)) { showSplash = false } }
+                    .transition(.opacity.combined(with: .scale(scale: 1.06)))
+            }
+        }
+        .statusBarHidden(showSplash)
         .task { await store.start() }
         // The position stays warm while the app is open, and the compass runs only on the Overhead radar.
         .onChange(of: scenePhase != .background, initial: true) { _, open in store.location.setUpdatesActive(open) }

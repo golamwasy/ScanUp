@@ -25,25 +25,36 @@ struct OverheadView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             RadarView(aircraft: feed.aircraft, radiusMeters: store.radiusMeters,
                       updatedAt: feed.updatedAt, heading: store.location.heading)
-                .frame(width: 200, height: 200)
-                .padding(.top, 8)
-            VStack(spacing: 4) {
+                .frame(width: 236, height: 236)
+                .padding(.top, 4)
+            VStack(spacing: 8) {
                 Text("Above you")
-                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                Text(summary)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-                    .animation(.smooth, value: feed.aircraft.count)
-            }
-            StatusPill(feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
-                Task { await store.refreshNearby() }
+                    .font(.system(.title, design: .rounded, weight: .bold))
+                // Side by side when they fit, and stacked when the pill has a long message.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) { summaryText; statusPill }
+                    VStack(spacing: 8) { summaryText; statusPill }
+                }
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var summaryText: some View {
+        Text(summary)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .contentTransition(.numericText())
+            .animation(.smooth, value: feed.aircraft.count)
+    }
+
+    private var statusPill: some View {
+        StatusPill(feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
+            Task { await store.refreshNearby() }
+        }
     }
 
     private var summary: String {

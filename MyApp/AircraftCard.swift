@@ -34,6 +34,7 @@ struct AircraftCard: View {
                     .font(.headline)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 if !aircraft.subtitle.isEmpty {
                     Text(aircraft.subtitle)
                         .font(.subheadline)
@@ -41,10 +42,11 @@ struct AircraftCard: View {
                         .lineLimit(1)
                 }
             }
-            Spacer(minLength: 8)
-            trailing
+            .layoutPriority(1)
+            Spacer(minLength: 4)
+            trailing.fixedSize()
             Image(systemName: "chevron.down")
-                .font(.footnote.weight(.bold))
+                .font(.caption.weight(.bold))
                 .foregroundStyle(.tertiary)
                 .rotationEffect(.degrees(isExpanded ? 180 : 0))
         }
@@ -55,7 +57,6 @@ struct AircraftCard: View {
         VStack(alignment: .trailing, spacing: 3) {
             if aircraft.onGround {
                 Chip(text: aircraft.isMoving ? String(localized: "Taxiing") : String(localized: "Stopped"),
-                     systemImage: aircraft.isMoving ? "arrow.triangle.turn.up.right.diamond" : "parkingsign",
                      tint: aircraft.isMoving ? Theme.warning : Theme.positive)
             } else {
                 Text(Format.distance(aircraft.distanceM))

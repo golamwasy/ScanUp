@@ -18,6 +18,8 @@ enum Theme {
                               dark: Color(red: 0.03, green: 0.06, blue: 0.15))
     static let skyBottom = Color(light: Color(red: 0.96, green: 0.98, blue: 1.0),
                                  dark: Color(red: 0.07, green: 0.13, blue: 0.29))
+    static let skyGlow = Color(light: Color(red: 0.45, green: 0.70, blue: 1.0).opacity(0.55),
+                               dark: Color(red: 0.10, green: 0.35, blue: 0.85).opacity(0.38))
     static let accent = Color(light: Color(red: 0.0, green: 0.44, blue: 0.86),
                               dark: Color(red: 0.36, green: 0.76, blue: 1.0))
     static let card = Color(light: Color.white.opacity(0.88), dark: Color.white.opacity(0.08))
@@ -33,8 +35,13 @@ enum Theme {
 
 struct SkyBackground: View {
     var body: some View {
-        LinearGradient(colors: [Theme.skyTop, Theme.skyBottom], startPoint: .top, endPoint: .bottom)
-            .ignoresSafeArea()
+        ZStack {
+            LinearGradient(colors: [Theme.skyTop, Theme.skyBottom], startPoint: .top, endPoint: .bottom)
+            // A soft glow behind the radar at the top.
+            RadialGradient(colors: [Theme.skyGlow, .clear], center: .init(x: 0.5, y: 0.12),
+                           startRadius: 0, endRadius: 380)
+        }
+        .ignoresSafeArea()
     }
 }
 
