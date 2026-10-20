@@ -16,13 +16,18 @@ struct OverheadView: View {
             .padding(.bottom, 24)
         }
         .background(SkyBackground())
-        .refreshable { await store.refreshNearby() }
+        .refreshable {
+            store.noteInteraction()
+            await store.refreshNearby()
+        }
+        .onScrollPhaseChange { _, _ in store.noteInteraction() }
         .scrollIndicators(.hidden)
     }
 
     private var header: some View {
         VStack(spacing: 14) {
-            RadarView(aircraft: feed.aircraft, radiusMeters: store.radiusMeters)
+            RadarView(aircraft: feed.aircraft, radiusMeters: store.radiusMeters,
+                      updatedAt: feed.updatedAt, heading: store.location.heading)
                 .frame(width: 200, height: 200)
                 .padding(.top, 8)
             VStack(spacing: 4) {
@@ -34,7 +39,9 @@ struct OverheadView: View {
                     .contentTransition(.numericText())
                     .animation(.smooth, value: feed.aircraft.count)
             }
-            StatusPill(feed: feed)
+            StatusPill(feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
+                Task { await store.refreshNearby() }
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -59,7 +66,7 @@ struct OverheadView: View {
             MessageCard(systemImage: "sun.max", title: String(localized: "Clear skies"),
                         message: String(localized: "Nothing is flying within \(Format.distance(store.radiusMeters)) of you right now. Widen the search area in Settings, or pull down to look again."))
         } else {
-            AircraftList(aircraft: feed.aircraft)
+            AircraftList(aircraft: feed.aircraft, heading: store.location.heading, interact: store.noteInteraction)
         }
     }
 }

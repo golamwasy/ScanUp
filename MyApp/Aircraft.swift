@@ -23,6 +23,8 @@ struct Aircraft: Decodable, Identifiable, Equatable {
 
 struct NearbyResponse: Decodable {
     let aircraft: [Aircraft]
+    /// Seconds the backend asks the app to wait before the next refresh.
+    let refreshAfterS: Int?
 }
 
 struct AirportInfo: Decodable, Equatable {
@@ -35,6 +37,7 @@ struct AirportInfo: Decodable, Equatable {
 struct AirportResponse: Decodable {
     let airport: AirportInfo?
     let source: String?
+    let refreshAfterS: Int?
     let aircraft: [Aircraft]
 }
 
@@ -116,6 +119,24 @@ extension Aircraft {
     }
 
     var hasRoute: Bool { originCode != nil || destinationCode != nil }
+
+    /// An aircraft is not moved on the radar for longer than this after its report.
+    static let maxProjection: TimeInterval = 30
+
+    /// Where the aircraft is some seconds after it was reported, seen from the phone's position at the time of the
+    /// report. It flies on in a straight line at its reported speed and track, which keeps the radar moving between
+    /// refreshes.
+    func projected(after seconds: TimeInterval) -> (distance: Double, bearing: Double) {
+        guard seconds > 0, let speedKt, speedKt > 0, let headingDeg else {
+            return (Double(distanceM), Double(bearingDeg))
+        }
+        let travelled = Double(speedKt) * 0.514444 * min(seconds, Self.maxProjection)
+        let bearing = Double(bearingDeg) * .pi / 180
+        let track = Double(headingDeg) * .pi / 180
+        let east = Double(distanceM) * sin(bearing) + travelled * sin(track)
+        let north = Double(distanceM) * cos(bearing) + travelled * cos(track)
+        return (hypot(east, north), Compass.normalized(atan2(east, north) * 180 / .pi))
+    }
 
     /// "Copenhagen (CPH)" becomes "Copenhagen".
     static func city(from place: String?) -> String? {

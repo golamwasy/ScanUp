@@ -1,25 +1,46 @@
 import SwiftUI
 
-/// "Updated 5 s ago", or "Updating…" while a refresh runs, or a warning when the last one failed.
+/// How current the list is. Quiet while the data is fresh ("Live"), and it speaks up only when the data is old,
+/// a refresh failed, or refreshing paused.
 struct StatusPill: View {
     let feed: Feed
+    let isPaused: Bool
+    let resume: () -> Void
+    let retry: () -> Void
+    /// Seconds after a successful refresh at which the list counts as old.
+    private static let staleAfter: Duration = .seconds(40)
+    @State private var isStale = false
 
     var body: some View {
         Group {
-            if feed.isLoading {
+            if isPaused {
+                Button(action: resume) {
+                    Label("Paused to save data. Tap to resume", systemImage: "pause.circle")
+                }
+                .foregroundStyle(.secondary)
+            } else if feed.problem != nil, feed.hasLoaded {
+                Button(action: retry) {
+                    Label("Couldn’t refresh. Tap to retry", systemImage: "exclamationmark.triangle.fill")
+                }
+                .foregroundStyle(Theme.warning)
+            } else if feed.isLoading, !feed.hasLoaded {
                 Label {
                     Text("Updating…")
                 } icon: {
                     ProgressView().controlSize(.mini)
                 }
                 .foregroundStyle(.secondary)
-            } else if feed.problem != nil, feed.hasLoaded {
-                Label("Couldn’t refresh", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Theme.warning)
             } else if let updatedAt = feed.updatedAt {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Label(Self.age(of: updatedAt, now: context.date), systemImage: "circle.fill")
-                        .labelStyle(PillDotStyle())
+                if isStale {
+                    // The wording follows the clock without a timer ticking every second.
+                    TimelineView(.periodic(from: .now, by: 15)) { _ in
+                        Label("Updated \(updatedAt.formatted(.relative(presentation: .numeric, unitsStyle: .wide)))",
+                              systemImage: "clock")
+                    }
+                    .foregroundStyle(Theme.warning)
+                } else {
+                    Label("Live", systemImage: "circle.fill")
+                        .labelStyle(PillDotStyle(pulse: updatedAt))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -28,22 +49,29 @@ struct StatusPill: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.thinMaterial, in: Capsule())
+        .animation(.smooth, value: isStale)
         .animation(.smooth, value: feed.isLoading)
         .animation(.smooth, value: feed.problem)
-    }
-
-    static func age(of date: Date, now: Date) -> String {
-        let seconds = max(0, Int(now.timeIntervalSince(date)))
-        if seconds < 5 { return String(localized: "Updated just now") }
-        if seconds < 60 { return String(localized: "Updated \(seconds) s ago") }
-        return String(localized: "Updated \(seconds / 60) min ago")
+        .animation(.smooth, value: isPaused)
+        .task(id: feed.updatedAt) {
+            isStale = false
+            try? await Task.sleep(for: Self.staleAfter)
+            if !Task.isCancelled { isStale = true }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
 private struct PillDotStyle: LabelStyle {
+    /// The dot gives a small bounce each time the list is refreshed.
+    let pulse: Date
+
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 6) {
-            configuration.icon.font(.system(size: 6)).foregroundStyle(Theme.positive)
+            configuration.icon
+                .font(.system(size: 6))
+                .foregroundStyle(Theme.positive)
+                .symbolEffect(.bounce, value: pulse)
             configuration.title
         }
     }
@@ -141,12 +169,17 @@ struct ProblemCard: View {
 /// Cards for a list of aircraft, with one expanded at a time or several, as the reader chooses.
 struct AircraftList: View {
     let aircraft: [Aircraft]
+    /// The direction the phone points, so each card's arrow shows which way to turn. Nil keeps the arrows north-up.
+    var heading: Double?
+    /// Called when a card is tapped, so the app knows someone is using it.
+    var interact: () -> Void = {}
     @State private var expanded: Set<String> = []
 
     var body: some View {
         LazyVStack(spacing: 12) {
             ForEach(aircraft) { item in
-                AircraftCard(aircraft: item, isExpanded: expanded.contains(item.id)) {
+                AircraftCard(aircraft: item, heading: heading, isExpanded: expanded.contains(item.id)) {
+                    interact()
                     withAnimation(Theme.spring) {
                         if expanded.contains(item.id) { expanded.remove(item.id) } else { expanded.insert(item.id) }
                     }

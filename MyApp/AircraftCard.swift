@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AircraftCard: View {
     let aircraft: Aircraft
+    var heading: Double?
     let isExpanded: Bool
     let toggle: () -> Void
 
@@ -63,7 +64,8 @@ struct AircraftCard: View {
                     .contentTransition(.numericText())
                 HStack(spacing: 4) {
                     Image(systemName: "location.north.fill")
-                        .rotationEffect(.degrees(Double(aircraft.bearingDeg)))
+                        .rotationEffect(.degrees(Compass.relative(bearing: Double(aircraft.bearingDeg), heading: heading)))
+                        .animation(.smooth(duration: 0.25), value: heading)
                     Text(aircraft.lookDirection)
                 }
                 .font(.caption.weight(.medium))

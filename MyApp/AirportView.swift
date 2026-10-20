@@ -16,7 +16,11 @@ struct AirportView: View {
             .padding(.bottom, 24)
         }
         .background(SkyBackground())
-        .refreshable { await store.refreshGround() }
+        .refreshable {
+            store.noteInteraction()
+            await store.refreshGround()
+        }
+        .onScrollPhaseChange { _, _ in store.noteInteraction() }
         .scrollIndicators(.hidden)
     }
 
@@ -48,7 +52,9 @@ struct AirportView: View {
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText())
                 .animation(.smooth, value: feed.aircraft.count)
-            StatusPill(feed: feed)
+            StatusPill(feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
+                Task { await store.refreshGround() }
+            }
             if usesBackupSource {
                 Label("Backup data source. Aircraft on the ground may be missing.", systemImage: "exclamationmark.circle")
                     .font(.footnote)
@@ -93,7 +99,7 @@ struct AirportView: View {
                             ? String(localized: "The backup data source shows few aircraft on the ground, so this may be incomplete. Try again in a few minutes.")
                             : String(localized: "No aircraft are being tracked on the ground at this airport right now. Parked aircraft with their transponders off do not appear."))
         } else {
-            AircraftList(aircraft: feed.aircraft)
+            AircraftList(aircraft: feed.aircraft, interact: store.noteInteraction)
         }
     }
 }

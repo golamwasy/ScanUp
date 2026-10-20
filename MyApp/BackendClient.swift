@@ -3,9 +3,13 @@ import Security
 
 enum ScanError: LocalizedError {
     case message(String)
+    /// The server asked the app to wait, so the next try should not come sooner.
+    case wait(String, seconds: Double)
 
     var errorDescription: String? {
-        switch self { case .message(let message): message }
+        switch self {
+        case .message(let message), .wait(let message, _): message
+        }
     }
 }
 
@@ -131,7 +135,8 @@ final class BackendClient {
             case 300...399:
                 throw ScanError.message(String(localized: "The server redirected this request. Use a direct API address without a browser login."))
             case 503:
-                throw ScanError.message(String(localized: "Flight data is unavailable right now. Try again in a moment."))
+                let seconds = Double(response.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 15
+                throw ScanError.wait(String(localized: "Flight data is unavailable right now. Trying again soon."), seconds: seconds)
             default:
                 throw ScanError.message(String(localized: "The server did not accept the request (HTTP \(response.statusCode))."))
             }
@@ -164,7 +169,8 @@ final class BackendClient {
         if response.statusCode == 429 {
             let delay = Double(response.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 60
             retryAfter = Date().addingTimeInterval(min(3600, max(15, delay)))
-            throw ScanError.message(String(localized: "The server is limiting requests. Try again shortly."))
+            throw ScanError.wait(String(localized: "The server is limiting requests. Trying again soon."),
+                                 seconds: min(3600, max(15, delay)))
         }
         try Self.check(response: response)
         return data
@@ -183,9 +189,9 @@ final class BackendClient {
     }
 
     func nearby(latitude: Double, longitude: Double, radiusMeters: Int,
-                configuration: BackendConfiguration) async throws -> [Aircraft] {
+                configuration: BackendConfiguration) async throws -> NearbyResponse {
         let body = NearbyRequest(latitude: latitude, longitude: longitude, radiusM: radiusMeters)
-        return try await post("v1/nearby", body: body, as: NearbyResponse.self, configuration: configuration).aircraft
+        return try await post("v1/nearby", body: body, as: NearbyResponse.self, configuration: configuration)
     }
 
     func airport(latitude: Double, longitude: Double,
