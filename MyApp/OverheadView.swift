@@ -47,7 +47,7 @@ struct OverheadView: View {
                 .frame(width: 236, height: 236)
                 .padding(.top, 4)
             VStack(spacing: 8) {
-                Text("Above you")
+                Text("Look up")
                     .font(.system(.title, design: .rounded, weight: .bold))
                 StatusLine(summary: summary, feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
                     Task { await store.refreshNearby() }
