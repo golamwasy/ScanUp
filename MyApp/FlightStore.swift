@@ -47,6 +47,8 @@ final class FlightStore {
     private(set) var nearby = Feed()
     private(set) var ground = Feed()
     private(set) var airport: AirportInfo?
+    /// Which data source answered the last airport refresh.
+    private(set) var groundSource: String?
     private(set) var connectionTest = ConnectionTest.idle
     var settingsMessage: String?
     var settingsError: String?
@@ -101,6 +103,7 @@ final class FlightStore {
                                                     longitude: position.coordinate.longitude,
                                                     configuration: configuration)
             airport = response.airport
+            groundSource = response.source
             ground.aircraft = response.aircraft
             ground.updatedAt = Date()
             ground.problem = nil

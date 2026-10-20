@@ -64,7 +64,7 @@ struct AircraftCard: View {
                 HStack(spacing: 4) {
                     Image(systemName: "location.north.fill")
                         .rotationEffect(.degrees(Double(aircraft.bearingDeg)))
-                    Text(aircraft.compass)
+                    Text(aircraft.lookDirection)
                 }
                 .font(.caption.weight(.medium))
                 .foregroundStyle(Theme.accent)
@@ -119,8 +119,9 @@ struct AircraftCard: View {
                                   value: trend.label, detail: trend == .level ? nil : rate))
             }
         }
-        facts.append(Fact(symbol: "location.north.line", title: String(localized: "From you"),
-                          value: "\(aircraft.compass) · \(Format.distance(aircraft.distanceM))"))
+        facts.append(Fact(symbol: "location.north.line", title: aircraft.onGround ? String(localized: "From you") : String(localized: "Where to look"),
+                          value: "\(aircraft.compass) · \(Format.distance(aircraft.distanceM))",
+                          detail: aircraft.elevationDeg.map { "\(aircraft.skyPosition ?? "") · \($0)°" }))
         return facts
     }
 }

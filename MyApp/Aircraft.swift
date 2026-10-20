@@ -17,6 +17,7 @@ struct Aircraft: Decodable, Identifiable, Equatable {
     let verticalRateFpm: Int?
     let distanceM: Int
     let bearingDeg: Int
+    let elevationDeg: Int?
     let onGround: Bool
 }
 
@@ -33,6 +34,7 @@ struct AirportInfo: Decodable, Equatable {
 
 struct AirportResponse: Decodable {
     let airport: AirportInfo?
+    let source: String?
     let aircraft: [Aircraft]
 }
 
@@ -90,6 +92,23 @@ extension Aircraft {
     var isMoving: Bool { (speedKt ?? 0) >= 3 }
 
     var compass: String { Self.compassPoint(for: bearingDeg) }
+
+    /// "NE · 22° up" for the collapsed card: which way to look and how high.
+    var lookDirection: String {
+        guard let elevationDeg else { return compass }
+        return "\(compass) · \(elevationDeg)° up"
+    }
+
+    /// "Just above the horizon", "Halfway up the sky" or "Almost overhead".
+    var skyPosition: String? {
+        guard let elevationDeg else { return nil }
+        switch elevationDeg {
+        case ..<10: return String(localized: "Low, near the horizon")
+        case 10..<35: return String(localized: "Low in the sky")
+        case 35..<65: return String(localized: "High in the sky")
+        default: return String(localized: "Almost overhead")
+        }
+    }
 
     static func compassPoint(for degrees: Int) -> String {
         let points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]

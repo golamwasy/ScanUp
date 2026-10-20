@@ -49,10 +49,22 @@ struct AirportView: View {
                 .contentTransition(.numericText())
                 .animation(.smooth, value: feed.aircraft.count)
             StatusPill(feed: feed)
+            if usesBackupSource {
+                Label("Backup data source. Aircraft on the ground may be missing.", systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.warning)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
         .frame(maxWidth: .infinity)
         .animation(Theme.spring, value: store.airport)
+        .animation(Theme.spring, value: usesBackupSource)
     }
+
+    /// OpenSky answers when the main source is down, and it sees few aircraft on the ground.
+    private var usesBackupSource: Bool { feed.hasLoaded && store.airport != nil && store.groundSource == "opensky" }
 
     private var summary: String {
         guard feed.hasLoaded, store.airport != nil else {
@@ -75,8 +87,11 @@ struct AirportView: View {
             MessageCard(systemImage: "mappin.slash", title: String(localized: "No airport nearby"),
                         message: String(localized: "ScanUp shows the aircraft on the ground when you are within 40 km of an airport."))
         } else if feed.aircraft.isEmpty {
-            MessageCard(systemImage: "moon.zzz", title: String(localized: "Quiet on the ground"),
-                        message: String(localized: "No aircraft are being tracked on the ground at this airport right now. Parked aircraft with their transponders off do not appear."))
+            MessageCard(systemImage: "moon.zzz",
+                        title: usesBackupSource ? String(localized: "Limited data") : String(localized: "Quiet on the ground"),
+                        message: usesBackupSource
+                            ? String(localized: "The backup data source shows few aircraft on the ground, so this may be incomplete. Try again in a few minutes.")
+                            : String(localized: "No aircraft are being tracked on the ground at this airport right now. Parked aircraft with their transponders off do not appear."))
         } else {
             AircraftList(aircraft: feed.aircraft)
         }
