@@ -33,7 +33,7 @@ struct RootView: View {
             Tab("Overhead", systemImage: "airplane", value: AppTab.overhead) {
                 OverheadView(store: store) { selection = .settings }
             }
-            Tab("Airport", systemImage: "airplane.departure", value: AppTab.airport) {
+            Tab("Airport", image: "TowerIcon", value: AppTab.airport) {
                 AirportView(store: store) { selection = .settings }
             }
             Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {

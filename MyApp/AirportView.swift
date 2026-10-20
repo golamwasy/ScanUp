@@ -27,11 +27,13 @@ struct AirportView: View {
 
     private var header: some View {
         VStack(spacing: 12) {
-            Image(systemName: "airplane.departure")
-                .font(.system(size: 44, weight: .light))
+            Image("TowerIcon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 46, height: 46)
                 .foregroundStyle(Theme.accent)
                 .padding(.top, 24)
-                .symbolEffect(.bounce, value: feed.updatedAt)
+                .accessibilityHidden(true)
             if let airport = store.airport {
                 VStack(spacing: 6) {
                     Text(airport.name)

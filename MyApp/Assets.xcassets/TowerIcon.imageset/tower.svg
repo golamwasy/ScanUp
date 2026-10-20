@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 100 100">
+  <!-- An airport control tower: antenna, roof, a cab with three windows, the shaft and a base. -->
+  <rect x="47" y="2" width="6" height="11" rx="2"/>
+  <path d="M27 14h46a5 5 0 0 1 5 5v3H22v-3a5 5 0 0 1 5-5z"/>
+  <path fill-rule="evenodd" d="M21 25h58l-8 21H29zM30 29h11v10H30zM44.500 29h11v10h-11zM59 29h11v10H59z"/>
+  <path d="M40 48h20l5 38H35z"/>
+  <rect x="24" y="86" width="52" height="9" rx="3"/>
+</svg>
