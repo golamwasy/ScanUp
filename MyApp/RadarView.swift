@@ -6,6 +6,11 @@ struct RadarView: View {
     let radiusMeters: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Compass letters on the rim, as a direction from the centre (x to the right, y downwards).
+    private static let directions: [(letter: String, x: CGFloat, y: CGFloat)] = [
+        ("N", 0, -1), ("E", 1, 0), ("S", 0, 1), ("W", -1, 0),
+    ]
+
     var body: some View {
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height)
@@ -43,10 +48,12 @@ struct RadarView: View {
                 }
                 Circle().fill(Theme.accent).frame(width: 10, height: 10)
                     .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 2))
-                Text("N")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.accent.opacity(0.8))
-                    .offset(y: -radius + 12)
+                ForEach(Self.directions, id: \.letter) { direction in
+                    Text(direction.letter)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.accent.opacity(direction.letter == "N" ? 0.95 : 0.7))
+                        .offset(x: direction.x * (radius - 12), y: direction.y * (radius - 12))
+                }
             }
             .frame(width: side, height: side)
             .animation(.smooth(duration: 0.8), value: aircraft)
