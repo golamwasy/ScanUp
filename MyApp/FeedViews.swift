@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// How current the list is. While the data is fresh it is only a small pulsing dot, and it speaks up with a short
-/// message only when the data is old, a refresh failed, or refreshing paused.
-struct StatusPill: View {
+/// The line under a tab's title. It is one line in one style: a small icon, then the text. Normally the icon is a
+/// pulsing green dot and the text says what was found. When the data is old, a refresh failed, refreshing paused, or
+/// the first answer is on its way, the text says that instead, with a matching icon and colour.
+struct StatusLine: View {
+    let summary: String
     let feed: Feed
     let isPaused: Bool
     let resume: () -> Void
@@ -12,110 +14,74 @@ struct StatusPill: View {
     @State private var isStale = false
 
     private enum Mode {
-        case paused, failed, updating, stale(Date), live(Date)
+        case paused, failed, updating, stale, live
     }
 
     private var mode: Mode? {
         if isPaused { return .paused }
         if feed.problem != nil, feed.hasLoaded { return .failed }
         if feed.isLoading, !feed.hasLoaded { return .updating }
-        guard let updatedAt = feed.updatedAt else { return nil }
-        return isStale ? .stale(updatedAt) : .live(updatedAt)
+        guard feed.updatedAt != nil else { return nil }
+        return isStale ? .stale : .live
     }
 
     var body: some View {
-        Group {
-            if let mode {
-                Group {
-                    if case .live = mode {
-                        pill(for: mode)
-                    } else {
-                        pill(for: mode)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(.thinMaterial, in: Capsule())
-                    }
-                }
-                .font(.footnote.weight(.medium))
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+        content
+            .font(.subheadline)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .id(mode)
+            .transition(.opacity)
+            .animation(.smooth, value: mode)
+            .task(id: feed.updatedAt) {
+                isStale = false
+                try? await Task.sleep(for: Self.staleAfter)
+                if !Task.isCancelled { isStale = true }
             }
-        }
-        .animation(.smooth, value: isStale)
-        .animation(.smooth, value: feed.isLoading)
-        .animation(.smooth, value: feed.hasLoaded)
-        .animation(.smooth, value: feed.problem)
-        .animation(.smooth, value: isPaused)
-        .task(id: feed.updatedAt) {
-            isStale = false
-            try? await Task.sleep(for: Self.staleAfter)
-            if !Task.isCancelled { isStale = true }
-        }
     }
 
     @ViewBuilder
-    private func pill(for mode: Mode) -> some View {
+    private var content: some View {
         switch mode {
         case .paused:
             Button(action: resume) {
-                Label("Paused · tap to resume", systemImage: "pause.circle")
+                line(Image(systemName: "pause.circle.fill"), tint: .secondary) { Text("Paused · tap to resume") }
             }
-            .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
         case .failed:
             Button(action: retry) {
-                Label("Couldn’t refresh · tap to retry", systemImage: "exclamationmark.triangle.fill")
+                line(Image(systemName: "exclamationmark.triangle.fill"), tint: Theme.warning) {
+                    Text("Couldn’t refresh · tap to retry")
+                }
             }
-            .foregroundStyle(Theme.warning)
+            .buttonStyle(.plain)
         case .updating:
-            Label {
-                Text("Updating…")
-            } icon: {
-                ProgressView().controlSize(.mini)
-            }
-            .foregroundStyle(.secondary)
-            .accessibilityElement(children: .combine)
-        case .stale(let updatedAt):
+            line(ProgressView().controlSize(.mini), tint: .secondary) { Text("Updating…") }
+        case .stale:
             // The wording follows the clock without a timer ticking every second.
-            TimelineView(.periodic(from: .now, by: 15)) { _ in
-                Label("Updated \(updatedAt.formatted(.relative(presentation: .numeric, unitsStyle: .wide)))",
-                      systemImage: "clock")
+            line(Image(systemName: "clock.fill"), tint: Theme.warning) {
+                TimelineView(.periodic(from: .now, by: 15)) { _ in
+                    Text("Updated \(feed.updatedAt?.formatted(.relative(presentation: .numeric, unitsStyle: .wide)) ?? "")")
+                }
             }
-            .foregroundStyle(Theme.warning)
-        case .live(let updatedAt):
-            Image(systemName: "circle.fill")
-                .font(.system(size: 8))
-                .foregroundStyle(Theme.positive)
-                .symbolEffect(.bounce, value: updatedAt)
-                .accessibilityLabel("Live")
-        }
-    }
-}
-
-/// The line under a tab's title: what it found, with the freshness dot beside it, or the message that needs attention.
-struct StatusLine: View {
-    let summary: String
-    let feed: Feed
-    let isPaused: Bool
-    let resume: () -> Void
-    let retry: () -> Void
-
-    var body: some View {
-        // Side by side when they fit, and stacked when the message is long.
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { text; pill }
-            VStack(spacing: 8) { text; pill }
+        case .live:
+            line(Image(systemName: "circle.fill").font(.system(size: 8)).foregroundStyle(Theme.positive)
+                    .symbolEffect(.bounce, value: feed.updatedAt), tint: .secondary) {
+                Text(summary)
+                    .contentTransition(.numericText())
+                    .animation(.smooth, value: feed.aircraft.count)
+            }
+        case nil:
+            Text(summary).foregroundStyle(.secondary)
         }
     }
 
-    private var text: some View {
-        Text(summary)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .contentTransition(.numericText())
-            .animation(.smooth, value: feed.aircraft.count)
-    }
-
-    private var pill: some View {
-        StatusPill(feed: feed, isPaused: isPaused, resume: resume, retry: retry)
+    private func line(_ icon: some View, tint: Color, @ViewBuilder text: () -> some View) -> some View {
+        HStack(spacing: 7) {
+            icon
+            text()
+        }
+        .foregroundStyle(tint)
     }
 }
 
