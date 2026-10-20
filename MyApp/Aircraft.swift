@@ -76,8 +76,8 @@ enum FlightPhase {
 
     var symbol: String {
         switch self {
-        case .landing: "arrow.down.right"
-        case .takingOff: "arrow.up.right"
+        case .landing: "airplane.arrival"
+        case .takingOff: "airplane.departure"
         }
     }
 }
