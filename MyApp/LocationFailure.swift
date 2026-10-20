@@ -24,11 +24,15 @@ nonisolated enum LocationFailure {
 /// Why no position could be found.
 enum LocationError: LocalizedError {
     case denied, timedOut, unavailable
+    /// Precise Location is off for the app, so positions are too rough to tell what is overhead.
+    case approximate
 
     var errorDescription: String? {
         switch self {
         case .denied:
             String(localized: "Location access is off. Allow it in Settings to see aircraft near you.")
+        case .approximate:
+            String(localized: "Precise Location is off for ScanUp. Turn it on in iOS Settings to see what is overhead.")
         case .timedOut, .unavailable:
             String(localized: "Could not find your location. Try again outdoors.")
         }

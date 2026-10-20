@@ -3,8 +3,12 @@ import SwiftUI
 extension Color {
     /// A colour that follows light and dark mode.
     init(light: Color, dark: Color) {
-        self.init(UIColor { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light)
+        let lightColor = UIColor(light)
+        let darkColor = UIColor(dark)
+        // SwiftUI calls this from its background renderer, not the main thread. Without `@Sendable` the closure
+        // counts as main-actor code in this project, and the system stops the app when it runs anywhere else.
+        self.init(UIColor { @Sendable traits in
+            traits.userInterfaceStyle == .dark ? darkColor : lightColor
         })
     }
 }

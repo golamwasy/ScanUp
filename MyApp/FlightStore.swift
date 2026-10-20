@@ -5,6 +5,8 @@ import Foundation
 enum FeedProblem: Equatable {
     case notConfigured
     case locationOff
+    /// Precise Location is off, so positions are too rough.
+    case locationApproximate
     case failed(String)
 }
 
@@ -110,7 +112,7 @@ final class FlightStore {
                                                    radiusMeters: requestedRadius, configuration: configuration)
             // The distance was changed while this was on its way, so the answer is for the wrong area.
             guard requestedRadius == radiusMeters else { return Self.interval(nil) }
-            nearby.aircraft = response.aircraft
+            nearby.aircraft = Self.unique(response.aircraft)
             nearby.updatedAt = Date()
             nearby.problem = nil
             nearbyFailures = 0
@@ -136,7 +138,7 @@ final class FlightStore {
                                                     configuration: configuration)
             airport = response.airport
             groundSource = response.source
-            ground.aircraft = response.aircraft
+            ground.aircraft = Self.unique(response.aircraft)
             ground.updatedAt = Date()
             ground.problem = nil
             groundFailures = 0
@@ -147,6 +149,12 @@ final class FlightStore {
             ground.problem = problem(for: error)
             return Self.backOff(after: error, failures: &groundFailures)
         }
+    }
+
+    /// One entry per aircraft. A list with a repeated id would confuse the list view.
+    private static func unique(_ aircraft: [Aircraft]) -> [Aircraft] {
+        var seen = Set<String>()
+        return aircraft.filter { seen.insert($0.id).inserted }
     }
 
     /// The wait the server asked for, kept within sensible limits.
@@ -195,6 +203,7 @@ final class FlightStore {
         switch error {
         case StoreError.notConfigured: .notConfigured
         case StoreError.locationOff, LocationError.denied: .locationOff
+        case LocationError.approximate: .locationApproximate
         default: .failed(error.localizedDescription)
         }
     }

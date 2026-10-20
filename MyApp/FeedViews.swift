@@ -158,6 +158,12 @@ struct ProblemCard: View {
                         tint: Theme.warning, actionTitle: String(localized: "Open iOS Settings")) {
                 if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
             }
+        case .locationApproximate:
+            MessageCard(systemImage: "location.circle", title: String(localized: "Precise Location is off"),
+                        message: String(localized: "ScanUp needs your exact position to tell what is overhead. Turn on Precise Location for ScanUp in iOS Settings."),
+                        tint: Theme.warning, actionTitle: String(localized: "Open iOS Settings")) {
+                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+            }
         case .failed(let message):
             MessageCard(systemImage: "wifi.exclamationmark", title: String(localized: "Couldn’t load aircraft"),
                         message: message, tint: Theme.warning,

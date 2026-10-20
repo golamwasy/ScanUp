@@ -6,12 +6,17 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
     /// A position older than this is not used to answer a request, such as the cached one Core Location hands out
     /// first when updates start.
     private static let maxFixAge: TimeInterval = 60
+    /// While updates are running, the system's last position is used as a last resort when no fresh one arrives.
+    private static let maxFallbackAge: TimeInterval = 10 * 60
 
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<CLLocation, Error>?
     private var timeout: Task<Void, Never>?
     private var latest: CLLocation?
     private var updatesWanted = false
+    /// The worst accuracy among positions that arrived but were too rough, to tell "Precise Location is off" apart
+    /// from "no position at all".
+    private var roughestRejectedAccuracy: CLLocationAccuracy = 0
 
     private(set) var authorization: CLAuthorizationStatus
     /// The direction the phone points, in degrees clockwise from north. Smoothed, and not wrapped at 360, so a dial
@@ -25,7 +30,9 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
-        manager.distanceFilter = 50
+        // Every update is wanted. A distance filter holds back new positions for a phone that stays still, which
+        // left requests waiting for one that never came.
+        manager.distanceFilter = kCLDistanceFilterNone
     }
 
     /// Asks for "While Using" access the first time. Does nothing once the user has answered.
@@ -85,14 +92,39 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
         }
     }
 
+    /// Waits for a position in steps. With updates running the next one normally arrives within a second or two.
+    /// After 3 seconds an explicit request is made as well, after 8 the system's last position is used if it is
+    /// recent enough, and after 12 the wait ends with an error.
     private func requestFix() {
         timeout?.cancel()
+        roughestRejectedAccuracy = 0
+        let streaming = updatesWanted && manager.authorizationStatus != .notDetermined
+        if !streaming { manager.requestLocation() }
         timeout = Task {
-            try? await Task.sleep(for: .seconds(12))
+            try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }
-            finish(.failure(LocationError.timedOut))
+            if streaming { manager.requestLocation() }
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            if let lastKnown = manager.location, streaming, Self.usable(lastKnown, maxAge: Self.maxFallbackAge) {
+                latest = lastKnown
+                finish(.success(lastKnown))
+                return
+            }
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            finish(.failure(failureWhenNothingArrived))
         }
-        manager.requestLocation()
+    }
+
+    private var failureWhenNothingArrived: LocationError {
+        manager.accuracyAuthorization == .reducedAccuracy || roughestRejectedAccuracy > 1000 ? .approximate : .timedOut
+    }
+
+    private static func usable(_ location: CLLocation, maxAge: TimeInterval) -> Bool {
+        CLLocationCoordinate2DIsValid(location.coordinate)
+            && location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= 1000
+            && abs(location.timestamp.timeIntervalSinceNow) <= maxAge
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -110,10 +142,9 @@ final class LocationFetcher: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last,
-              CLLocationCoordinate2DIsValid(location.coordinate),
-              location.horizontalAccuracy >= 0, location.horizontalAccuracy <= 1000,
-              abs(location.timestamp.timeIntervalSinceNow) <= Self.maxFixAge else { return }
+        guard let location = locations.last else { return }
+        if location.horizontalAccuracy > 1000 { roughestRejectedAccuracy = max(roughestRejectedAccuracy, location.horizontalAccuracy) }
+        guard Self.usable(location, maxAge: Self.maxFixAge) else { return }
         latest = location
         finish(.success(location))
     }

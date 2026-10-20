@@ -115,7 +115,7 @@ extension Aircraft {
 
     static func compassPoint(for degrees: Int) -> String {
         let points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-        return points[Int((Double(degrees) / 45).rounded()) % 8]
+        return points[Int((Compass.normalized(Double(degrees)) / 45).rounded()) % 8]
     }
 
     var hasRoute: Bool { originCode != nil || destinationCode != nil }
