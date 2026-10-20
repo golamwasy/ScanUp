@@ -101,5 +101,21 @@ MainActor.assumeIsolated {
     }
 }
 
+MainActor.assumeIsolated {
+  do {
+    // Barometric altitude can read below sea level on a day of high pressure, and must never be shown that way.
+    func json(_ altitude: String) -> Data {
+        Data(#"{"id":"a","altitude_ft":\#(altitude),"distance_m":500,"bearing_deg":10,"on_ground":false}"#.utf8)
+    }
+    let below = try BackendClient.decode(Aircraft.self, from: json("-375"))
+    check(below.heightFt == 0 && below.isVeryLow, "a negative altitude counts as zero and very low")
+    let low = try BackendClient.decode(Aircraft.self, from: json("99"))
+    let high = try BackendClient.decode(Aircraft.self, from: json("3700"))
+    check(low.isVeryLow && !high.isVeryLow && high.heightFt == 3700, "very low is under 100 ft")
+  } catch {
+    check(false, "decoding threw \(error)")
+  }
+}
+
 print(failures == 0 ? "all checks passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

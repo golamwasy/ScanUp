@@ -95,6 +95,13 @@ extension Aircraft {
 
     var isMoving: Bool { (speedKt ?? 0) >= 3 }
 
+    /// The altitude, never below zero. Barometric altitude reads below sea level on a day of high air pressure, which
+    /// means nothing to a person looking up.
+    var heightFt: Int? { altitudeFt.map { max(0, $0) } }
+
+    /// Under 100 ft the pressure-based reading is too coarse to quote as a number.
+    var isVeryLow: Bool { !onGround && (heightFt ?? .max) < 100 }
+
     var compass: String { Self.compassPoint(for: bearingDeg) }
 
     /// "NE · 22° up" for the collapsed card: which way to look and how high.

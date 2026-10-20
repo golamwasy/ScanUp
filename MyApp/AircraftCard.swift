@@ -53,17 +53,21 @@ struct AircraftCard: View {
         if aircraft.onGround {
             Chip(text: aircraft.isMoving ? String(localized: "Taxiing") : String(localized: "Stopped"),
                  tint: aircraft.isMoving ? Theme.warning : Theme.positive)
-        } else if let altitude = aircraft.altitudeFt {
+        } else if let altitude = aircraft.heightFt {
             // The same type sizes as the two lines on the left, so each line sits level with its neighbour.
             VStack(alignment: .trailing, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(altitude.formatted(.number))
-                        .font(.headline)
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
-                    Text("ft")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    if aircraft.isVeryLow {
+                        Text("Low").font(.headline)
+                    } else {
+                        Text(altitude.formatted(.number))
+                            .font(.headline)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                        Text("ft")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Text("altitude")
                     .font(.subheadline)
@@ -71,7 +75,7 @@ struct AircraftCard: View {
             }
             .animation(.smooth, value: altitude)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Altitude \(Format.altitude(altitude))")
+            .accessibilityLabel(aircraft.isVeryLow ? Text("Flying low") : Text("Altitude \(Format.altitude(altitude))"))
         }
     }
 
@@ -102,9 +106,10 @@ struct AircraftCard: View {
             facts.append(Fact(symbol: "speedometer", title: String(localized: "Speed"),
                               value: aircraft.speedKt.map { "\($0) kt" } ?? String(localized: "Stopped")))
         } else {
-            if let altitude = aircraft.altitudeFt {
+            if let altitude = aircraft.heightFt {
                 facts.append(Fact(symbol: "arrow.up.to.line", title: String(localized: "Altitude"),
-                                  value: Format.altitude(altitude), detail: Format.meters(fromFeet: altitude)))
+                                  value: aircraft.isVeryLow ? String(localized: "Below 100 ft") : Format.altitude(altitude),
+                                  detail: aircraft.isVeryLow ? nil : Format.meters(fromFeet: altitude)))
             }
             if let speed = aircraft.speedKt {
                 facts.append(Fact(symbol: "speedometer", title: String(localized: "Speed"), value: "\(speed) kt",
