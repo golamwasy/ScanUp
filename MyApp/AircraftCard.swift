@@ -45,36 +45,34 @@ struct AircraftCard: View {
             .layoutPriority(1)
             Spacer(minLength: 4)
             trailing.fixedSize()
-            Image(systemName: "chevron.down")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.tertiary)
-                .rotationEffect(.degrees(isExpanded ? 180 : 0))
         }
     }
 
+    /// Airborne: a badge whose arrow points toward the aircraft, with the distance under it. On the ground: its state.
     @ViewBuilder
     private var trailing: some View {
-        VStack(alignment: .trailing, spacing: 3) {
-            if aircraft.onGround {
-                Chip(text: aircraft.isMoving ? String(localized: "Taxiing") : String(localized: "Stopped"),
-                     tint: aircraft.isMoving ? Theme.warning : Theme.positive)
-            } else {
+        if aircraft.onGround {
+            Chip(text: aircraft.isMoving ? String(localized: "Taxiing") : String(localized: "Stopped"),
+                 tint: aircraft.isMoving ? Theme.warning : Theme.positive)
+        } else {
+            VStack(spacing: 5) {
+                Image(systemName: "location.north.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .rotationEffect(.degrees(Compass.relative(bearing: Double(aircraft.bearingDeg), heading: heading)))
+                    .animation(.smooth(duration: 0.25), value: heading)
+                    .frame(width: 38, height: 38)
+                    .background(Theme.accent.opacity(0.14), in: Circle())
                 Text(Format.distance(aircraft.distanceM))
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .monospacedDigit()
+                    .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
-                HStack(spacing: 4) {
-                    Image(systemName: "location.north.fill")
-                        .rotationEffect(.degrees(Compass.relative(bearing: Double(aircraft.bearingDeg), heading: heading)))
-                        .animation(.smooth(duration: 0.25), value: heading)
-                    Text(aircraft.lookDirection)
-                }
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Theme.accent)
             }
+            .animation(.smooth, value: aircraft.distanceM)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(Format.distance(aircraft.distanceM)) away, to the \(aircraft.lookDirection)")
         }
-        .animation(.smooth, value: aircraft.distanceM)
-        .animation(.smooth, value: aircraft.bearingDeg)
     }
 
     private var details: some View {
