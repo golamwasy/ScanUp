@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// How current the list is. Quiet while the data is fresh ("Live"), and it speaks up only when the data is old,
-/// a refresh failed, or refreshing paused. With nothing to say there is no pill at all.
+/// How current the list is. While the data is fresh it is only a small pulsing dot, and it speaks up with a short
+/// message only when the data is old, a refresh failed, or refreshing paused.
 struct StatusPill: View {
     let feed: Feed
     let isPaused: Bool
@@ -26,12 +26,18 @@ struct StatusPill: View {
     var body: some View {
         Group {
             if let mode {
-                pill(for: mode)
-                    .font(.footnote.weight(.medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.thinMaterial, in: Capsule())
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                Group {
+                    if case .live = mode {
+                        pill(for: mode)
+                    } else {
+                        pill(for: mode)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.thinMaterial, in: Capsule())
+                    }
+                }
+                .font(.footnote.weight(.medium))
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
         .animation(.smooth, value: isStale)
@@ -51,12 +57,12 @@ struct StatusPill: View {
         switch mode {
         case .paused:
             Button(action: resume) {
-                Label("Paused to save data. Tap to resume", systemImage: "pause.circle")
+                Label("Paused · tap to resume", systemImage: "pause.circle")
             }
             .foregroundStyle(.secondary)
         case .failed:
             Button(action: retry) {
-                Label("Couldn’t refresh. Tap to retry", systemImage: "exclamationmark.triangle.fill")
+                Label("Couldn’t refresh · tap to retry", systemImage: "exclamationmark.triangle.fill")
             }
             .foregroundStyle(Theme.warning)
         case .updating:
@@ -75,25 +81,41 @@ struct StatusPill: View {
             }
             .foregroundStyle(Theme.warning)
         case .live(let updatedAt):
-            Label("Live", systemImage: "circle.fill")
-                .labelStyle(PillDotStyle(pulse: updatedAt))
-                .foregroundStyle(.secondary)
+            Image(systemName: "circle.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(Theme.positive)
+                .symbolEffect(.bounce, value: updatedAt)
+                .accessibilityLabel("Live")
         }
     }
 }
 
-private struct PillDotStyle: LabelStyle {
-    /// The dot gives a small bounce each time the list is refreshed.
-    let pulse: Date
+/// The line under a tab's title: what it found, with the freshness dot beside it, or the message that needs attention.
+struct StatusLine: View {
+    let summary: String
+    let feed: Feed
+    let isPaused: Bool
+    let resume: () -> Void
+    let retry: () -> Void
 
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 6) {
-            configuration.icon
-                .font(.system(size: 6))
-                .foregroundStyle(Theme.positive)
-                .symbolEffect(.bounce, value: pulse)
-            configuration.title
+    var body: some View {
+        // Side by side when they fit, and stacked when the message is long.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { text; pill }
+            VStack(spacing: 8) { text; pill }
         }
+    }
+
+    private var text: some View {
+        Text(summary)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .contentTransition(.numericText())
+            .animation(.smooth, value: feed.aircraft.count)
+    }
+
+    private var pill: some View {
+        StatusPill(feed: feed, isPaused: isPaused, resume: resume, retry: retry)
     }
 }
 
@@ -195,8 +217,6 @@ struct ProblemCard: View {
 /// Cards for a list of aircraft, with one expanded at a time or several, as the reader chooses.
 struct AircraftList: View {
     let aircraft: [Aircraft]
-    /// The direction the phone points, so each card's arrow shows which way to turn. Nil keeps the arrows north-up.
-    var heading: Double?
     /// Called when a card is tapped, so the app knows someone is using it.
     var interact: () -> Void = {}
     @State private var expanded: Set<String> = []
@@ -204,7 +224,7 @@ struct AircraftList: View {
     var body: some View {
         LazyVStack(spacing: 12) {
             ForEach(aircraft) { item in
-                AircraftCard(aircraft: item, heading: heading, isExpanded: expanded.contains(item.id)) {
+                AircraftCard(aircraft: item, isExpanded: expanded.contains(item.id)) {
                     interact()
                     withAnimation(Theme.spring) {
                         if expanded.contains(item.id) { expanded.remove(item.id) } else { expanded.insert(item.id) }

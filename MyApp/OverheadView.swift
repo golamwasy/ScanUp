@@ -33,36 +33,20 @@ struct OverheadView: View {
             VStack(spacing: 8) {
                 Text("Above you")
                     .font(.system(.title, design: .rounded, weight: .bold))
-                // Side by side when they fit, and stacked when the pill has a long message.
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 10) { summaryText; statusPill }
-                    VStack(spacing: 8) { summaryText; statusPill }
+                StatusLine(summary: summary, feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
+                    Task { await store.refreshNearby() }
                 }
             }
         }
         .frame(maxWidth: .infinity)
     }
 
-    private var summaryText: some View {
-        Text(summary)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .contentTransition(.numericText())
-            .animation(.smooth, value: feed.aircraft.count)
-    }
-
-    private var statusPill: some View {
-        StatusPill(feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
-            Task { await store.refreshNearby() }
-        }
-    }
-
     private var summary: String {
         let radius = Format.distance(store.radiusMeters)
-        guard feed.hasLoaded else { return String(localized: "Within \(radius) of you") }
+        guard feed.hasLoaded else { return String(localized: "Within \(radius)") }
         return feed.aircraft.isEmpty
             ? String(localized: "No aircraft within \(radius)")
-            : String(localized: "\(feed.aircraft.count) within \(radius)")
+            : String(localized: "\(feed.aircraft.count) aircraft · \(radius)")
     }
 
     @ViewBuilder
@@ -77,7 +61,7 @@ struct OverheadView: View {
             MessageCard(systemImage: "sun.max", title: String(localized: "Clear skies"),
                         message: String(localized: "Nothing is flying within \(Format.distance(store.radiusMeters)) of you right now. Widen the search area in Settings, or pull down to look again."))
         } else {
-            AircraftList(aircraft: feed.aircraft, heading: store.location.heading, interact: store.noteInteraction)
+            AircraftList(aircraft: feed.aircraft, interact: store.noteInteraction)
         }
     }
 }

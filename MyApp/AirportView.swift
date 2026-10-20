@@ -47,12 +47,7 @@ struct AirportView: View {
                 Text("Airport")
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
             }
-            Text(summary)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .contentTransition(.numericText())
-                .animation(.smooth, value: feed.aircraft.count)
-            StatusPill(feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
+            StatusLine(summary: summary, feed: feed, isPaused: store.isPaused, resume: store.noteInteraction) {
                 Task { await store.refreshGround() }
             }
             if usesBackupSource {

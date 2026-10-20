@@ -2,7 +2,6 @@ import SwiftUI
 
 struct AircraftCard: View {
     let aircraft: Aircraft
-    var heading: Double?
     let isExpanded: Bool
     let toggle: () -> Void
 
@@ -48,30 +47,30 @@ struct AircraftCard: View {
         }
     }
 
-    /// Airborne: a badge whose arrow points toward the aircraft, with the distance under it. On the ground: its state.
+    /// Airborne: how high it is. On the ground: its state.
     @ViewBuilder
     private var trailing: some View {
         if aircraft.onGround {
             Chip(text: aircraft.isMoving ? String(localized: "Taxiing") : String(localized: "Stopped"),
                  tint: aircraft.isMoving ? Theme.warning : Theme.positive)
-        } else {
-            VStack(spacing: 5) {
-                Image(systemName: "location.north.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
-                    .rotationEffect(.degrees(Compass.relative(bearing: Double(aircraft.bearingDeg), heading: heading)))
-                    .animation(.smooth(duration: 0.25), value: heading)
-                    .frame(width: 38, height: 38)
-                    .background(Theme.accent.opacity(0.14), in: Circle())
-                Text(Format.distance(aircraft.distanceM))
-                    .font(.caption.weight(.semibold))
-                    .monospacedDigit()
+        } else if let altitude = aircraft.altitudeFt {
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(altitude.formatted(.number))
+                        .font(.system(.title3, design: .rounded, weight: .bold))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                    Text("ft")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Text("altitude")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
             }
-            .animation(.smooth, value: aircraft.distanceM)
+            .animation(.smooth, value: altitude)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(Format.distance(aircraft.distanceM)) away, to the \(aircraft.lookDirection)")
+            .accessibilityLabel("Altitude \(Format.altitude(altitude))")
         }
     }
 
