@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// How current the list is. Quiet while the data is fresh ("Live"), and it speaks up only when the data is old,
-/// a refresh failed, or refreshing paused.
+/// a refresh failed, or refreshing paused. With nothing to say there is no pill at all.
 struct StatusPill: View {
     let feed: Feed
     let isPaused: Bool
@@ -11,46 +11,32 @@ struct StatusPill: View {
     private static let staleAfter: Duration = .seconds(40)
     @State private var isStale = false
 
+    private enum Mode {
+        case paused, failed, updating, stale(Date), live(Date)
+    }
+
+    private var mode: Mode? {
+        if isPaused { return .paused }
+        if feed.problem != nil, feed.hasLoaded { return .failed }
+        if feed.isLoading, !feed.hasLoaded { return .updating }
+        guard let updatedAt = feed.updatedAt else { return nil }
+        return isStale ? .stale(updatedAt) : .live(updatedAt)
+    }
+
     var body: some View {
         Group {
-            if isPaused {
-                Button(action: resume) {
-                    Label("Paused to save data. Tap to resume", systemImage: "pause.circle")
-                }
-                .foregroundStyle(.secondary)
-            } else if feed.problem != nil, feed.hasLoaded {
-                Button(action: retry) {
-                    Label("Couldn’t refresh. Tap to retry", systemImage: "exclamationmark.triangle.fill")
-                }
-                .foregroundStyle(Theme.warning)
-            } else if feed.isLoading, !feed.hasLoaded {
-                Label {
-                    Text("Updating…")
-                } icon: {
-                    ProgressView().controlSize(.mini)
-                }
-                .foregroundStyle(.secondary)
-            } else if let updatedAt = feed.updatedAt {
-                if isStale {
-                    // The wording follows the clock without a timer ticking every second.
-                    TimelineView(.periodic(from: .now, by: 15)) { _ in
-                        Label("Updated \(updatedAt.formatted(.relative(presentation: .numeric, unitsStyle: .wide)))",
-                              systemImage: "clock")
-                    }
-                    .foregroundStyle(Theme.warning)
-                } else {
-                    Label("Live", systemImage: "circle.fill")
-                        .labelStyle(PillDotStyle(pulse: updatedAt))
-                        .foregroundStyle(.secondary)
-                }
+            if let mode {
+                pill(for: mode)
+                    .font(.footnote.weight(.medium))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.thinMaterial, in: Capsule())
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
-        .font(.footnote.weight(.medium))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.thinMaterial, in: Capsule())
         .animation(.smooth, value: isStale)
         .animation(.smooth, value: feed.isLoading)
+        .animation(.smooth, value: feed.hasLoaded)
         .animation(.smooth, value: feed.problem)
         .animation(.smooth, value: isPaused)
         .task(id: feed.updatedAt) {
@@ -58,7 +44,41 @@ struct StatusPill: View {
             try? await Task.sleep(for: Self.staleAfter)
             if !Task.isCancelled { isStale = true }
         }
-        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private func pill(for mode: Mode) -> some View {
+        switch mode {
+        case .paused:
+            Button(action: resume) {
+                Label("Paused to save data. Tap to resume", systemImage: "pause.circle")
+            }
+            .foregroundStyle(.secondary)
+        case .failed:
+            Button(action: retry) {
+                Label("Couldn’t refresh. Tap to retry", systemImage: "exclamationmark.triangle.fill")
+            }
+            .foregroundStyle(Theme.warning)
+        case .updating:
+            Label {
+                Text("Updating…")
+            } icon: {
+                ProgressView().controlSize(.mini)
+            }
+            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
+        case .stale(let updatedAt):
+            // The wording follows the clock without a timer ticking every second.
+            TimelineView(.periodic(from: .now, by: 15)) { _ in
+                Label("Updated \(updatedAt.formatted(.relative(presentation: .numeric, unitsStyle: .wide)))",
+                      systemImage: "clock")
+            }
+            .foregroundStyle(Theme.warning)
+        case .live(let updatedAt):
+            Label("Live", systemImage: "circle.fill")
+                .labelStyle(PillDotStyle(pulse: updatedAt))
+                .foregroundStyle(.secondary)
+        }
     }
 }
 

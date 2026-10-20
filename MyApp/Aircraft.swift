@@ -102,7 +102,7 @@ extension Aircraft {
         return "\(compass) · \(elevationDeg)° up"
     }
 
-    /// "Just above the horizon", "Halfway up the sky" or "Almost overhead".
+    /// Where in the sky to look: low near the horizon, low, high, or almost overhead.
     var skyPosition: String? {
         guard let elevationDeg else { return nil }
         switch elevationDeg {

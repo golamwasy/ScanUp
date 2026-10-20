@@ -9,7 +9,9 @@ struct RadarView: View {
     /// When the aircraft were reported. Dots drift along their track from then, until the next refresh.
     let updatedAt: Date?
     let heading: Double?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var reduceMotionSetting
+    /// Reduce Motion, or Low Power Mode: the sweep and the drift are decoration, so they stop.
+    private var reduceMotion: Bool { reduceMotionSetting || ProcessInfo.processInfo.isLowPowerModeEnabled }
 
     /// Compass letters on the rim, as a direction from the centre (x to the right, y downwards).
     private static let directions: [(letter: String, x: CGFloat, y: CGFloat)] = [
@@ -21,7 +23,7 @@ struct RadarView: View {
             let side = min(proxy.size.width, proxy.size.height)
             let radius = side / 2
             let facing = heading ?? 0
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { context in
+            TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion)) { context in
                 ZStack {
                     Circle().fill(Theme.accent.opacity(0.07))
                     dial(side: side, radius: radius, facing: facing)

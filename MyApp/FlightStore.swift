@@ -53,6 +53,10 @@ final class FlightStore {
     @ObservationIgnored private var lastInteraction = Date()
     @ObservationIgnored private var nearbyFailures = 0
     @ObservationIgnored private var groundFailures = 0
+    /// The refresh that is running, if any. A second call waits for it instead of starting another or being skipped,
+    /// and it is not cancelled when the person changes tab, so its answer is not wasted.
+    @ObservationIgnored private var nearbyTask: Task<Duration, Never>?
+    @ObservationIgnored private var groundTask: Task<Duration, Never>?
 
     private(set) var configuration: BackendConfiguration?
     private(set) var isConfigurationLoaded = false
@@ -79,7 +83,10 @@ final class FlightStore {
             UserDefaults.standard.set(radiusKm, forKey: Self.radiusKey)
             // The list on screen was found for another distance, so it is no longer an answer. Going back to
             // Overhead then loads the new one, with the header and radar already at the new distance.
-            if radiusKm != oldValue { nearby = Feed() }
+            if radiusKm != oldValue {
+                nearby = Feed()
+                nearby.isLoading = nearbyTask != nil
+            }
         }
     }
 
@@ -101,17 +108,28 @@ final class FlightStore {
     /// Refreshes the Overhead list. Returns how long to wait before the next refresh.
     @discardableResult
     func refreshNearby() async -> Duration {
-        guard isConfigurationLoaded, !nearby.isLoading else { return Self.interval(nil) }
+        guard isConfigurationLoaded else { return Self.interval(nil) }
+        if let running = nearbyTask { return await running.value }
+        let task = Task { () -> Duration in
+            let wait = await performNearby()
+            nearbyTask = nil
+            nearby.isLoading = false
+            return wait
+        }
+        nearbyTask = task
+        return await task.value
+    }
+
+    private func performNearby() async -> Duration {
         nearby.isLoading = true
-        defer { nearby.isLoading = false }
         let requestedRadius = radiusMeters
         do {
             let (configuration, position) = try await prepare()
             let response = try await client.nearby(latitude: position.coordinate.latitude,
                                                    longitude: position.coordinate.longitude,
                                                    radiusMeters: requestedRadius, configuration: configuration)
-            // The distance was changed while this was on its way, so the answer is for the wrong area.
-            guard requestedRadius == radiusMeters else { return Self.interval(nil) }
+            // The distance was changed while this was on its way, so the answer is for the wrong area. Ask again soon.
+            guard requestedRadius == radiusMeters else { return .seconds(1) }
             nearby.aircraft = Self.unique(response.aircraft)
             nearby.updatedAt = Date()
             nearby.problem = nil
@@ -128,9 +146,20 @@ final class FlightStore {
     /// Refreshes the Airport list. Returns how long to wait before the next refresh.
     @discardableResult
     func refreshGround() async -> Duration {
-        guard isConfigurationLoaded, !ground.isLoading else { return Self.interval(nil) }
+        guard isConfigurationLoaded else { return Self.interval(nil) }
+        if let running = groundTask { return await running.value }
+        let task = Task { () -> Duration in
+            let wait = await performGround()
+            groundTask = nil
+            ground.isLoading = false
+            return wait
+        }
+        groundTask = task
+        return await task.value
+    }
+
+    private func performGround() async -> Duration {
         ground.isLoading = true
-        defer { ground.isLoading = false }
         do {
             let (configuration, position) = try await prepare()
             let response = try await client.airport(latitude: position.coordinate.latitude,

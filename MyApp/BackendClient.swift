@@ -146,7 +146,8 @@ final class BackendClient {
     private func perform(_ request: URLRequest) async throws -> Data {
         try Task.checkCancellation()
         guard Date() >= retryAfter else {
-            throw ScanError.message(String(localized: "The server asked us to wait. Try again at \(retryAfter.formatted(date: .omitted, time: .standard))."))
+            throw ScanError.wait(String(localized: "The server asked us to wait. Trying again at \(retryAfter.formatted(date: .omitted, time: .standard))."),
+                                 seconds: retryAfter.timeIntervalSinceNow)
         }
         let data: Data
         let response: URLResponse
