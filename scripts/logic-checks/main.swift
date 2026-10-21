@@ -149,6 +149,10 @@ MainActor.assumeIsolated {
                                   "day-2026-10-22", "A3|2026-10-22T01:00:00+03:00|EETN"], "rows: \(rows.map(\.id))")
         let late = ISO8601DateFormatter().date(from: "2026-10-22T12:00:00Z")!
         check(BoardRow.rows(for: [a1, a2], direction: .departures, now: late).last?.id == "now", "now at the end when all are past")
+        let undated = try BackendClient.decode(ScheduledFlight.self, from: Data(#"{"number":"AY 3","status":"expected","departure":{"airport":{"name":"H"}},"arrival":{"airport":{"name":"T"}}}"#.utf8))
+        check(BoardRow.rows(for: [a1, undated], direction: .departures, now: noon).map(\.id).last == undated.id, "a flight without a time goes to the end, not away")
+        check(FlightStatus.departed.isDone(on: .departures) && !FlightStatus.departed.isDone(on: .arrivals), "a flight in the air is past on departures, still coming on arrivals")
+        check(FlightStatus.enRoute.isDone(on: .departures) && !FlightStatus.enRoute.isDone(on: .arrivals) && FlightStatus.arrived.isDone(on: .arrivals), "en route and arrived")
         check(BoardRow.rows(for: [], direction: .departures, now: noon).map(\.id) == ["now"], "an empty board is only the now line")
 
         // A found aircraft carries the times of its flight.
@@ -156,6 +160,13 @@ MainActor.assumeIsolated {
         let tracked = try BackendClient.decode(NearbyResponse.self, from: Data(trackJSON.utf8))
         check(tracked.aircraft[0].flightNumber == "AY1406" && tracked.aircraft[0].schedule?.flightStatus == .enRoute, "tracked aircraft with its schedule")
         check(tracked.aircraft[0].schedule?.departure.delayMinutes == 10 && tracked.aircraft[0].schedule?.arrival.expected == nil, "times of the tracked flight")
+        // One broken flight or schedule does not spoil the rest.
+        let oneBad = #"{"updated_at":"2026-10-21T19:10:58Z","departures":[\#(flightJSON(utc: "2026-10-21T07:00:00Z", local: "2026-10-21T10:00:00+03:00")),{"number":"X"},\#(flightJSON(number: "AY 2", utc: "2026-10-21T08:00:00Z", local: "2026-10-21T11:00:00+03:00"))],"arrivals":[]}"#
+        let lossy = try BackendClient.decode(BoardResponse.self, from: Data(oneBad.utf8))
+        check(lossy.departures.map(\.number) == ["AY 1013", "AY 2"], "a broken flight is skipped, the others stay: \(lossy.departures.map(\.number))")
+        let badSchedule = #"{"refresh_after_s":15,"aircraft":[{"id":"a","distance_m":1,"bearing_deg":2,"on_ground":false,"schedule":{"number":"AY 1"}}]}"#
+        let keptPlane = try BackendClient.decode(NearbyResponse.self, from: Data(badSchedule.utf8))
+        check(keptPlane.aircraft.count == 1 && keptPlane.aircraft[0].schedule == nil, "a broken schedule does not hide the aircraft")
         let nearbyPlain = try BackendClient.decode(NearbyResponse.self, from: Data(nearbyJSON.utf8))
         check(nearbyPlain.aircraft[0].schedule == nil && nearbyPlain.aircraft[0].flightNumber == nil, "no schedule in the nearby list")
 

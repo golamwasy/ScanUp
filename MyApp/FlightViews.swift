@@ -156,9 +156,28 @@ struct FlightRow: View {
         }
         .buttonStyle(PressableCardStyle())
         // Flights that have gone or landed step back a little, so the ones still to come stand out.
-        .opacity(flight.flightStatus.isDone ? 0.62 : 1)
-        .accessibilityElement(children: .combine)
+        .opacity(flight.flightStatus.isDone(on: direction) ? 0.62 : 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel(end: end, other: other))
         .accessibilityHint("Shows the flight’s details")
+    }
+
+    /// "Departure 10:00, expected 10:30. Paris, flight AY 1406. Delayed. Gate B4", the way the row reads to the eye.
+    private func accessibilityLabel(end: FlightEnd, other: Place) -> String {
+        var parts: [String] = []
+        if let scheduled = end.scheduled {
+            if end.isLate, let expected = end.expected {
+                parts.append(String(localized: "Scheduled \(scheduled.clock), expected \(expected.clock)"))
+            } else {
+                parts.append(String(localized: "At \(scheduled.clock)"))
+            }
+        }
+        parts.append(direction == .departures ? String(localized: "To \(other.shortName)") : String(localized: "From \(other.shortName)"))
+        parts.append(String(localized: "Flight \(flight.number)"))
+        parts.append(flight.flightStatus.label(late: end.isLate, direction: direction))
+        if direction == .departures, let gate = end.gate { parts.append(String(localized: "Gate \(gate)")) }
+        if direction == .arrivals, let belt = end.baggageBelt { parts.append(String(localized: "Belt \(belt)")) }
+        return parts.joined(separator: ". ")
     }
 }
 
@@ -377,11 +396,11 @@ struct ScheduleTimes: View {
         return end.expected != nil ? String(localized: "Expected") : String(localized: "Scheduled")
     }
 
-    /// "Scheduled 22:55 · 10 min late", shown only when there is something to compare with.
+    /// "Scheduled 22:55" and, below it, "10 min late", shown only when there is something to compare with.
     private func detail(_ end: FlightEnd) -> String? {
         guard let scheduled = end.scheduled, end.expected != nil, let minutes = end.delayMinutes else { return nil }
         let late = minutes >= 5 ? String(localized: "\(minutes) min late")
             : minutes <= -5 ? String(localized: "\(-minutes) min early") : String(localized: "on time")
-        return String(localized: "Scheduled \(scheduled.clock) · \(late)")
+        return String(localized: "Scheduled \(scheduled.clock)\n\(late)")
     }
 }

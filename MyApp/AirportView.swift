@@ -161,7 +161,7 @@ struct AirportView: View {
             }
         } else if flights.isEmpty {
             MessageCard(systemImage: "moon.zzz", title: String(localized: "No \(direction.title.lowercased())"),
-                        message: String(localized: "There are no \(direction.title.lowercased()) here from 12 hours ago to 12 hours ahead."))
+                        message: String(localized: "There are no \(direction.title.lowercased()) here in the last 12 hours and the next 11."))
         } else {
             list
         }

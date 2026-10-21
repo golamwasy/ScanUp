@@ -73,8 +73,14 @@ enum FlightStatus: String {
     case canceledUncertain = "canceled_uncertain"
 
     var isCancelled: Bool { self == .canceled }
-    /// Gone from the airport or already arrived, so the row belongs to the past.
-    var isDone: Bool { self == .departed || self == .enRoute || self == .arrived || self == .canceled || self == .diverted }
+    /// Finished as far as this list is concerned, so the row belongs to the past: a flight that has left is done on the
+    /// Departures list but still to come on the Arrivals list, where only landing (or no landing) ends it.
+    func isDone(on direction: BoardDirection) -> Bool {
+        switch direction {
+        case .departures: self == .departed || self == .enRoute || self == .arrived || self == .canceled || self == .diverted
+        case .arrivals: self == .arrived || self == .canceled || self == .diverted
+        }
+    }
 }
 
 enum BoardDirection: String, CaseIterable, Identifiable {
@@ -137,6 +143,63 @@ struct BoardResponse: Decodable {
     let notice: String?
     let departures: [ScheduledFlight]
     let arrivals: [ScheduledFlight]
+
+    private enum CodingKeys: String, CodingKey {
+        case airport, updatedAt, refreshAfterS, notice, departures, arrivals
+    }
+
+    /// One flight that does not read as expected is left out, not the whole board.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        airport = try container.decodeIfPresent(BoardAirport.self, forKey: .airport)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        refreshAfterS = try container.decodeIfPresent(Int.self, forKey: .refreshAfterS)
+        notice = try container.decodeIfPresent(String.self, forKey: .notice)
+        departures = try container.decode(LossyList<ScheduledFlight>.self, forKey: .departures).elements
+        arrivals = try container.decode(LossyList<ScheduledFlight>.self, forKey: .arrivals).elements
+    }
+}
+
+/// A list that keeps the elements that decode and skips the others.
+struct LossyList<Element: Decodable>: Decodable {
+    let elements: [Element]
+
+    /// Takes the place of an element that did not decode, so the list moves on to the next one.
+    private struct Skipped: Decodable {
+        init(from decoder: Decoder) throws {}
+    }
+
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        var elements: [Element] = []
+        while !container.isAtEnd {
+            if let element = try? container.decode(Element.self) {
+                elements.append(element)
+            } else {
+                _ = try container.decode(Skipped.self)
+            }
+        }
+        self.elements = elements
+    }
+}
+
+/// A value the app can do without: when it does not decode it is nil, and the rest of the answer is kept.
+@propertyWrapper
+struct Lenient<Value: Decodable & Equatable>: Decodable, Equatable {
+    var wrappedValue: Value?
+
+    init(wrappedValue: Value?) { self.wrappedValue = wrappedValue }
+
+    init(from decoder: Decoder) throws {
+        wrappedValue = try? Value(from: decoder)
+    }
+}
+
+extension KeyedDecodingContainer {
+    /// A missing key is nil as well.
+    func decode<Value>(_ type: Lenient<Value>.Type, forKey key: Key) throws -> Lenient<Value> {
+        try decodeIfPresent(type, forKey: key) ?? Lenient(wrappedValue: nil)
+    }
 }
 
 struct AirportSearchResponse: Decodable {
@@ -192,8 +255,13 @@ enum BoardRow: Identifiable {
         var rows: [BoardRow] = []
         var day: String?
         var nowPlaced = false
+        var unscheduled: [BoardRow] = []
         for flight in flights {
-            guard let scheduled = flight.end(on: direction).scheduled else { continue }
+            // A flight without a time cannot be placed, so it goes to the end instead of vanishing.
+            guard let scheduled = flight.end(on: direction).scheduled else {
+                unscheduled.append(.flight(flight))
+                continue
+            }
             if !nowPlaced, scheduled.utc >= now {
                 rows.append(.now)
                 nowPlaced = true
@@ -205,7 +273,7 @@ enum BoardRow: Identifiable {
             rows.append(.flight(flight))
         }
         if !nowPlaced { rows.append(.now) }
-        return rows
+        return rows + unscheduled
     }
 }
 

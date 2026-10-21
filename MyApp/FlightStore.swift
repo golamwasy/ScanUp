@@ -1,9 +1,16 @@
 import CoreLocation
 import Foundation
 
-private enum StoreError: Error {
+private enum StoreError: LocalizedError {
     case notConfigured
     case locationOff
+
+    var errorDescription: String? {
+        switch self {
+        case .notConfigured: String(localized: "Add the server address and access token in Settings first.")
+        case .locationOff: String(localized: "Location access is off. Allow it in Settings to see aircraft near you.")
+        }
+    }
 }
 
 enum ConnectionTest: Equatable {
@@ -167,6 +174,7 @@ final class FlightStore {
         } catch is CancellationError {
             return Self.interval(nil)
         } catch {
+            guard requestedRadius == radiusMeters, requestedPlace == testLocation else { return .seconds(1) }
             nearby.problem = problem(for: error)
             let wait = Self.backOff(after: error, failures: &nearbyFailures)
             nearby.failures = nearbyFailures
@@ -220,6 +228,8 @@ final class FlightStore {
         } catch is CancellationError {
             return Self.boardInterval(nil)
         } catch {
+            // A failure of a request that is no longer wanted (another airport was picked) says nothing about this one.
+            guard requestedAirport == chosenAirport, requestedPlace == testLocation else { return .seconds(1) }
             board.problem = problem(for: error)
             let wait = Self.backOff(after: error, failures: &boardFailures)
             board.failures = boardFailures

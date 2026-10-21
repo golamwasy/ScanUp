@@ -29,11 +29,11 @@ struct StatusLine: View {
                   isPaused: isPaused, staleAfter: .seconds(40), resume: resume, retry: retry)
     }
 
-    /// The Airport board, which refreshes every ten minutes.
+    /// The Airport board, which refreshes every twenty minutes: it is old only when two refreshes in a row are missed.
     init(summary: String, board: BoardFeed, isPaused: Bool, resume: @escaping () -> Void, retry: @escaping () -> Void) {
         self.init(summary: summary, state: ListState(problem: board.problem, hasLoaded: board.hasLoaded, isLoading: board.isLoading,
                                                      updatedAt: board.updatedAt, count: board.departures.count + board.arrivals.count),
-                  isPaused: isPaused, staleAfter: .seconds(20 * 60), resume: resume, retry: retry)
+                  isPaused: isPaused, staleAfter: .seconds(45 * 60), resume: resume, retry: retry)
     }
 
     init(summary: String, state: ListState, isPaused: Bool, staleAfter: Duration, resume: @escaping () -> Void,

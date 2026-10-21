@@ -24,7 +24,7 @@ struct Aircraft: Decodable, Identifiable, Equatable {
     let phase: String?
     let onGround: Bool
     /// When the flight left and is due, in a search answer. Absent in the nearby list and when the server has none.
-    let schedule: ScheduledFlight?
+    @Lenient var schedule: ScheduledFlight?
 }
 
 struct NearbyResponse: Decodable {

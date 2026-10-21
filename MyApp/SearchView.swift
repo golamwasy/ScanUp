@@ -16,6 +16,8 @@ final class AircraftSearchModel {
     /// Shown when the text cannot be a flight number, callsign or registration, instead of asking the server.
     private(set) var hint: String?
     private(set) var recent: [String] = UserDefaults.standard.stringArray(forKey: recentKey) ?? []
+    /// Counts the searches, so only the newest one may write its answer: an older one that finishes late is ignored.
+    private var generation = 0
 
     func run(store: FlightStore, asking query: String? = nil) async {
         let typed = query ?? text
@@ -25,23 +27,37 @@ final class AircraftSearchModel {
             return
         }
         hint = nil
+        generation += 1
+        let mine = generation
         isLoading = true
-        defer { isLoading = false }
         do {
-            aircraft = try await store.track(query: normalised)
+            let found = try await store.track(query: normalised)
+            guard mine == generation else { return }
+            aircraft = found
             foundAt = Date()
             problem = nil
             searched = normalised
             remember(normalised)
         } catch is CancellationError {
+            // Cleared or replaced: whoever did that owns the screen now.
+            return
         } catch {
+            guard mine == generation else { return }
             problem = store.problem(for: error)
             aircraft = []
             searched = normalised
         }
+        isLoading = false
+    }
+
+    func clearRecent() {
+        recent = []
+        UserDefaults.standard.removeObject(forKey: Self.recentKey)
     }
 
     func clearAnswer() {
+        generation += 1
+        isLoading = false
         aircraft = []
         searched = nil
         problem = nil
@@ -65,6 +81,7 @@ struct SearchView: View {
     let openSettingsTab: () -> Void
     @State private var model = AircraftSearchModel()
     @State private var expanded: Set<String> = []
+    @State private var searching: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -86,7 +103,10 @@ struct SearchView: View {
             .submitLabel(.search)
             .onSubmit(of: .search) { search() }
             .onChange(of: model.text) { _, text in
-                if text.isEmpty { model.clearAnswer() }
+                if text.isEmpty {
+                    searching?.cancel()
+                    model.clearAnswer()
+                }
             }
             .refreshable {
                 guard let searched = model.searched else { return }
@@ -101,9 +121,10 @@ struct SearchView: View {
         if let query { model.text = query }
         // A new search starts with every card closed, except a single answer, which opens at once.
         expanded = []
-        Task {
+        searching?.cancel()
+        searching = Task {
             await model.run(store: store, asking: query)
-            if model.aircraft.count == 1, let only = model.aircraft.first {
+            if !Task.isCancelled, model.aircraft.count == 1, let only = model.aircraft.first {
                 withAnimation(Theme.spring) { expanded = [only.id] }
             }
         }
@@ -163,7 +184,12 @@ struct SearchView: View {
                         message: String(localized: "Type a flight number like AY1406, a callsign like FIN5DA or a registration like OH-LXA, and press Search. If that plane is in the air and heard right now, you see where it is."))
             if !model.recent.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Recent").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                    HStack {
+                        Text("Recent").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                        Spacer()
+                        Button("Clear") { model.clearRecent() }
+                            .font(.footnote.weight(.semibold))
+                    }
                     FlowRow(items: model.recent) { search($0) }
                 }
             }
@@ -172,7 +198,7 @@ struct SearchView: View {
     }
 
     private var footnote: some View {
-        Text("Only planes that are flying and heard by ADS-B receivers can be found. Each search uses up to 3 of the day’s ADSB.lol requests.")
+        Text("Only planes that are flying and heard by ADS-B receivers can be found. Each search uses up to 3 of the day’s ADSB.lol requests. Flight times by AeroDataBox.")
             .font(.footnote)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity)

@@ -105,7 +105,8 @@ private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
 @MainActor
 final class BackendClient {
     private let session: URLSession
-    private var retryAfter = Date.distantPast
+    /// When each endpoint may be asked again after a 429, so a limit on one does not hold up the others.
+    private var retryAfter: [String: Date] = [:]
 
     init() {
         let configuration = URLSessionConfiguration.ephemeral
@@ -145,6 +146,8 @@ final class BackendClient {
                 throw ScanError.message(String(localized: "Server access denied. Check the access token in Settings."))
             case 404:
                 throw ScanError.message(String(localized: "Backend API not found. Check the server address in Settings."))
+            case 422:
+                throw ScanError.message(String(localized: "The server could not use that request. Check what you typed."))
             case 300...399:
                 throw ScanError.message(String(localized: "The server redirected this request. Use a direct API address without a browser login."))
             case 503:
@@ -158,9 +161,10 @@ final class BackendClient {
 
     private func perform(_ request: URLRequest) async throws -> Data {
         try Task.checkCancellation()
-        guard Date() >= retryAfter else {
-            throw ScanError.wait(String(localized: "The server asked us to wait. Trying again at \(retryAfter.formatted(date: .omitted, time: .standard))."),
-                                 seconds: retryAfter.timeIntervalSinceNow)
+        let endpoint = request.url?.path ?? ""
+        if let until = retryAfter[endpoint], Date() < until {
+            throw ScanError.wait(String(localized: "The server asked us to wait. Trying again at \(until.formatted(date: .omitted, time: .standard))."),
+                                 seconds: until.timeIntervalSinceNow)
         }
         let data: Data
         let response: URLResponse
@@ -182,7 +186,7 @@ final class BackendClient {
         guard let response = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if response.statusCode == 429 {
             let delay = Double(response.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 60
-            retryAfter = Date().addingTimeInterval(min(3600, max(15, delay)))
+            retryAfter[endpoint] = Date().addingTimeInterval(min(3600, max(15, delay)))
             throw ScanError.wait(String(localized: "The server is limiting requests. Trying again soon."),
                                  seconds: min(3600, max(15, delay)))
         }
