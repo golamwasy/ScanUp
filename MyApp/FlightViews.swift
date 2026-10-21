@@ -138,16 +138,8 @@ struct FlightRow: View {
                 }
                 .layoutPriority(1)
                 Spacer(minLength: 4)
-                VStack(alignment: .trailing, spacing: 4) {
-                    FlightStatusChip(flight: flight, direction: direction)
-                    if let place = direction == .departures ? end.gate.map({ String(localized: "Gate \($0)") })
-                        : end.baggageBelt.map({ String(localized: "Belt \($0)") }) {
-                        Text(place)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .fixedSize()
+                FlightStatusChip(flight: flight, direction: direction)
+                    .fixedSize()
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -175,8 +167,6 @@ struct FlightRow: View {
         parts.append(direction == .departures ? String(localized: "To \(other.shortName)") : String(localized: "From \(other.shortName)"))
         parts.append(String(localized: "Flight \(flight.number)"))
         parts.append(flight.flightStatus.label(late: end.isLate, direction: direction))
-        if direction == .departures, let gate = end.gate { parts.append(String(localized: "Gate \(gate)")) }
-        if direction == .arrivals, let belt = end.baggageBelt { parts.append(String(localized: "Belt \(belt)")) }
         return parts.joined(separator: ". ")
     }
 }
