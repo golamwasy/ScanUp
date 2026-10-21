@@ -8,7 +8,6 @@ You can go back and forth between the old and the new version of the app with tw
 |---|---|
 | `before-schedules` (tag) and `backup/before-schedules` (branch) | The app as it was before the airport boards and flight search, the working version of 2026-10-21. Never changes. |
 | `main` | The newest version: airport boards with earlier and later flights, and Search for a plane by flight number, callsign or registration (merged 2026-10-21). |
-| `feature/schedules` | The branch the new version was built on. Same as `main` now; it can be deleted. |
 
 A **branch** is a line of work that moves forward when you commit. A **tag** is a bookmark on one exact commit that never moves. Both are on GitHub: https://github.com/golamwasy/ScanUp
 
