@@ -85,4 +85,4 @@ These services are free or community run and can change or stop. Do not rely on 
 
 ## License
 
-The code is released under the [MIT License](LICENSE). The flight data it shows comes from third-party services (see Credits above), each with its own terms, which the license does not cover.
+The code is released under the [MIT License](LICENSE). The flight data it shows comes from third-party services (see Data and credits above), each with its own terms, which the license does not cover.
