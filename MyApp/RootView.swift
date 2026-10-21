@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AppTab: Hashable {
-    case overhead, airport, flights, settings
+    case overhead, search, airport, settings
 }
 
 struct RootView: View {
@@ -37,14 +37,14 @@ struct RootView: View {
             Tab("Overhead", systemImage: "airplane", value: AppTab.overhead) {
                 OverheadView(store: store) { selection = .settings }
             }
+            Tab("Search", systemImage: "magnifyingglass", value: AppTab.search) {
+                SearchView(store: store) { selection = .settings }
+            }
             Tab("Airport", image: "TowerIcon", value: AppTab.airport) {
                 AirportView(store: store) { selection = .settings }
             }
             Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
                 SettingsView(store: store)
-            }
-            Tab("Flights", systemImage: "magnifyingglass", value: AppTab.flights, role: .search) {
-                FlightsView(store: store) { selection = .settings }
             }
         }
         .tint(Theme.accent)
@@ -61,8 +61,8 @@ struct RootView: View {
         .onChange(of: wantsCompass, initial: true) { _, wanted in store.location.setCompass(wanted) }
         .onChange(of: selection) { _, tab in
             store.noteInteraction()
-            // Settings shows what is left of each allowance, and the Flights tab what a search costs.
-            if tab == .settings || tab == .flights { Task { await store.refreshUsage() } }
+            // Settings shows what is left of each allowance.
+            if tab == .settings { Task { await store.refreshUsage() } }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { store.noteInteraction() }

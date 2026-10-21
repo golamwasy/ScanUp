@@ -227,10 +227,12 @@ final class FlightStore {
         }
     }
 
-    /// The flights under a flight number on a date ("2026-10-21"). Each search uses units of the schedule allowance.
-    func searchFlights(number: String, date: String) async throws -> FlightSearchResponse {
-        guard let configuration else { throw StoreError.notConfigured }
-        return try await client.searchFlights(number: number, date: date, configuration: configuration)
+    /// The aircraft heard right now under a flight number, callsign or registration, with distance and direction from here.
+    func track(query: String) async throws -> [Aircraft] {
+        let (configuration, position) = try await prepare()
+        let response = try await client.track(query: query, latitude: position.coordinate.latitude,
+                                              longitude: position.coordinate.longitude, configuration: configuration)
+        return Self.unique(response.aircraft)
     }
 
     /// Airports for a code, a city or a name. Free.

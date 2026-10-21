@@ -147,7 +147,7 @@ struct AircraftCard: View {
                                   value: trend.label, detail: trend == .level ? nil : rate))
             }
         }
-        facts.append(Fact(symbol: "location.north.line", title: aircraft.onGround ? String(localized: "From you") : String(localized: "Where to look"),
+        facts.append(Fact(symbol: "location.north.line", title: aircraft.onGround || aircraft.elevationDeg == nil ? String(localized: "From you") : String(localized: "Where to look"),
                           value: "\(aircraft.compass) · \(Format.distance(aircraft.distanceM))",
                           detail: aircraft.elevationDeg.map { "\(aircraft.skyPosition ?? "") · \($0)°" }))
         return facts

@@ -151,19 +151,16 @@ MainActor.assumeIsolated {
         check(BoardRow.rows(for: [a1, a2], direction: .departures, now: late).last?.id == "now", "now at the end when all are past")
         check(BoardRow.rows(for: [], direction: .departures, now: noon).map(\.id) == ["now"], "an empty board is only the now line")
 
-        let searchJSON = #"{"number":"AY1406","date":"2026-10-21","updated_at":"2026-10-21T19:10:58Z","flights":[\#(flightJSON(utc: "2026-10-21T07:00:00Z", local: "2026-10-21T10:00:00+03:00"))]}"#
-        let search = try BackendClient.decode(FlightSearchResponse.self, from: Data(searchJSON.utf8))
-        check(search.number == "AY1406" && search.flights.count == 1 && search.notice == nil, "search answer")
         let airports = try BackendClient.decode(AirportSearchResponse.self, from: Data(#"{"airports":[{"name":"London Heathrow Airport","city":"London","iata":"LHR","icao":"EGLL","country":"GB"},{"name":"Tiny Strip","icao":"XX12"}]}"#.utf8))
         check(airports.airports.count == 2 && airports.airports[0].code == "LHR" && airports.airports[1].code == "XX12", "airport search answer")
         check(airports.airports[1].shortName == "Tiny Strip" && airports.airports[0].id == "EGLL", "place names and ids")
     } catch {
         check(false, "decoding threw \(error)")
     }
-    check(FlightNumber.normalised("ay 1406") == "AY1406" && FlightNumber.normalised("AY-1406") == "AY1406", "flight numbers are tidied")
-    check(FlightNumber.normalised("U2 1234") == "U21234" && FlightNumber.normalised("BA2490A") == "BA2490A" && FlightNumber.normalised("FIN12") == "FIN12", "other kinds of flight numbers")
-    check(FlightNumber.normalised("12345") == nil && FlightNumber.normalised("AY") == nil && FlightNumber.normalised("AY12345") == nil, "not flight numbers")
-    check(FlightNumber.normalised("AY1406; DROP") == nil && FlightNumber.normalised("") == nil, "junk is refused")
+    check(TrackQuery.normalised("ay 1406") == "AY1406" && TrackQuery.normalised(" fin5da ") == "FIN5DA", "search text is tidied")
+    check(TrackQuery.normalised("oh-lxa") == "OH-LXA" && TrackQuery.normalised("N393UP") == "N393UP", "registrations")
+    check(TrackQuery.normalised("A") == nil && TrackQuery.normalised("") == nil && TrackQuery.normalised("-AB") == nil, "too short or starting with a hyphen")
+    check(TrackQuery.normalised("AY1406; DROP") == nil && TrackQuery.normalised("AY/1406") == nil && TrackQuery.normalised("ABCDEFGHIJK") == nil, "junk and long text is refused")
 }
 
 MainActor.assumeIsolated {

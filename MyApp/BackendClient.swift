@@ -86,10 +86,10 @@ struct BoardRequest: Encodable {
     let longitude: Double?
 }
 
-struct FlightSearchRequest: Encodable {
-    let number: String
-    /// The local date of departure, "2026-10-21".
-    let date: String
+struct TrackRequest: Encodable {
+    let query: String
+    let latitude: Double
+    let longitude: Double
 }
 
 // A Cloudflare login page or redirect must never receive the app's bearer token.
@@ -227,10 +227,10 @@ final class BackendClient {
         try await post("v1/board", body: request, as: BoardResponse.self, configuration: configuration)
     }
 
-    /// The flights under a flight number on a date. Each search uses units of the schedule allowance.
-    func searchFlights(number: String, date: String, configuration: BackendConfiguration) async throws -> FlightSearchResponse {
-        try await post("v1/flights/search", body: FlightSearchRequest(number: number, date: date),
-                       as: FlightSearchResponse.self, configuration: configuration)
+    /// The aircraft heard right now under a flight number, callsign or registration, from anywhere in the world.
+    func track(query: String, latitude: Double, longitude: Double, configuration: BackendConfiguration) async throws -> NearbyResponse {
+        try await post("v1/track", body: TrackRequest(query: query, latitude: latitude, longitude: longitude),
+                       as: NearbyResponse.self, configuration: configuration)
     }
 
     /// Airports for a code, a city or a name. Free: the server searches its own list.

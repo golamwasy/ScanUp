@@ -240,7 +240,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Flight schedules")
-                Text("boards, search").font(.caption).foregroundStyle(.secondary)
+                Text("airport boards").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if !schedules.enabled {
                     Text("Not set up").foregroundStyle(.secondary)
@@ -255,8 +255,8 @@ struct SettingsView: View {
             if schedules.enabled {
                 ProgressView(value: schedules.fractionUsed)
                     .tint(schedules.isRunningLow ? Theme.warning : Theme.accent)
-                Text(schedules.resetsAt.map { String(localized: "A board uses 4, a search 2. Renews on \($0.formatted(date: .abbreviated, time: .omitted)).") }
-                     ?? String(localized: "A board uses 4, a search 2, each month."))
+                Text(schedules.resetsAt.map { String(localized: "A board uses 4. Renews on \($0.formatted(date: .abbreviated, time: .omitted)).") }
+                     ?? String(localized: "A board uses 4 each month."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -139,14 +139,6 @@ struct BoardResponse: Decodable {
     let arrivals: [ScheduledFlight]
 }
 
-struct FlightSearchResponse: Decodable {
-    let number: String
-    let date: String
-    let updatedAt: Date
-    let notice: String?
-    let flights: [ScheduledFlight]
-}
-
 struct AirportSearchResponse: Decodable {
     let airports: [Place]
 }
@@ -217,15 +209,12 @@ enum BoardRow: Identifiable {
     }
 }
 
-enum FlightNumber {
-    /// "ay 1406" or "AY-1406" becomes "AY1406"; nil when it cannot be a flight number. The same rule as the server,
-    /// so a typing mistake does not cost a request: two characters with a letter, or three letters, then up to four
-    /// digits and an optional letter.
+enum TrackQuery {
+    /// "ay 1406" becomes "AY1406"; nil when it cannot be a flight number, callsign or registration. The same rule as
+    /// the server, so a typing mistake does not cost a request: letters, digits and hyphens, two to ten of them.
     static func normalised(_ text: String) -> String? {
-        let compact = text.uppercased().filter { !$0.isWhitespace && $0 != "-" }
-        guard compact.range(of: #"^([A-Z]{2}|[A-Z][0-9]|[0-9][A-Z]|[A-Z]{3})[0-9]{1,4}[A-Z]?$"#, options: .regularExpression) != nil else {
-            return nil
-        }
+        let compact = text.uppercased().filter { !$0.isWhitespace }
+        guard compact.range(of: #"^[A-Z0-9][A-Z0-9-]{1,9}$"#, options: .regularExpression) != nil else { return nil }
         return compact
     }
 }
