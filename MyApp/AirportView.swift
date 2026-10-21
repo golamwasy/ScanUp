@@ -53,11 +53,11 @@ struct AirportView: View {
             }
             .onScrollPhaseChange { _, _ in store.noteInteraction() }
             .scrollIndicators(.hidden)
-            // Another airport starts from "now" again, at the top.
-            .onChange(of: board.airport?.icao) { _, _ in
-                windows = [:]
-                proxy.scrollTo("top", anchor: .top)
-            }
+            // Another airport, the other list, or coming back to the tab starts from "now" again, with the first page.
+            .onChange(of: board.airport?.icao) { _, _ in startOver(proxy) }
+            .onChange(of: direction) { _, _ in startOver(proxy) }
+            .onDisappear { windows = [:] }
+            .onAppear { startOver(proxy) }
             // The list grew upwards: stay on the flight that was first, instead of jumping to the new top.
             .onChange(of: keepInView) { _, id in
                 guard let id else { return }
@@ -165,6 +165,12 @@ struct AirportView: View {
         } else {
             list
         }
+    }
+
+    /// Back to the first page from "now", at the top. The earlier flights stay fetched, so showing them again is free.
+    private func startOver(_ proxy: ScrollViewProxy) {
+        windows = [:]
+        proxy.scrollTo("top", anchor: .top)
     }
 
     private var window: BoardPaging.Window { windows[direction] ?? BoardPaging.Window() }
