@@ -26,7 +26,7 @@ struct AirportView: View {
                     if board.hasLoaded, !(board.departures.isEmpty && board.arrivals.isEmpty) {
                         Picker("List", selection: $direction) {
                             ForEach(BoardDirection.allCases) { direction in
-                                Text("\(direction.title) \(board.flights(direction).count)").tag(direction)
+                                Text(direction.title).tag(direction)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -124,7 +124,7 @@ struct AirportView: View {
             }
             .font(.subheadline.weight(.medium))
             .tint(Theme.accent)
-            StatusLine(summary: summary, board: board, isPaused: store.isPaused, resume: store.noteInteraction) {
+            StatusLine(summary: "", board: board, isPaused: store.isPaused, resume: store.noteInteraction) {
                 Task { await store.refreshBoard() }
             }
             if store.chosenAirport == nil {
@@ -142,13 +142,6 @@ struct AirportView: View {
         .frame(maxWidth: .infinity)
         .animation(Theme.spring, value: board.airport)
         .animation(Theme.spring, value: store.chosenAirport)
-    }
-
-    private var summary: String {
-        guard board.hasLoaded, board.airport != nil else {
-            return String(localized: "12 hours back and 12 hours ahead")
-        }
-        return String(localized: "\(board.departures.count) departures · \(board.arrivals.count) arrivals")
     }
 
     @ViewBuilder

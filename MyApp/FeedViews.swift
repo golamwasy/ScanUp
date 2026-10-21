@@ -97,6 +97,9 @@ struct StatusLine: View {
                     Text("Updated \(state.updatedAt?.formatted(.relative(presentation: .numeric, unitsStyle: .wide)) ?? "")")
                 }
             }
+        case .live where summary.isEmpty:
+            // A list with nothing to say while all is well (the Airport board) shows no line at all.
+            EmptyView()
         case .live:
             line(Image(systemName: "circle.fill").font(.system(size: 8)).foregroundStyle(Theme.positive)
                     .symbolEffect(.bounce, value: state.updatedAt), tint: .secondary) {
@@ -105,7 +108,7 @@ struct StatusLine: View {
                     .animation(.smooth, value: state.count)
             }
         case nil:
-            Text(summary).foregroundStyle(.secondary)
+            if !summary.isEmpty { Text(summary).foregroundStyle(.secondary) }
         }
     }
 
