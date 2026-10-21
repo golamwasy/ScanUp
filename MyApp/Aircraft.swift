@@ -4,6 +4,8 @@ import Foundation
 struct Aircraft: Decodable, Identifiable, Equatable {
     let id: String
     let callsign: String?
+    /// The number as on a ticket, when the server knows it.
+    let flightNumber: String?
     let airline: String?
     let origin: String?
     let originCode: String?
@@ -21,6 +23,8 @@ struct Aircraft: Decodable, Identifiable, Equatable {
     /// "landing" or "taking_off", decided by the backend from the airport nearby. Absent otherwise.
     let phase: String?
     let onGround: Bool
+    /// When the flight left and is due, in a search answer. Absent in the nearby list and when the server has none.
+    let schedule: ScheduledFlight?
 }
 
 struct NearbyResponse: Decodable {

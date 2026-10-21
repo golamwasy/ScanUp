@@ -107,6 +107,9 @@ struct AircraftCard: View {
                 RouteView(fromCode: aircraft.originCode, fromCity: Aircraft.city(from: aircraft.origin),
                           toCode: aircraft.destinationCode, toCity: Aircraft.city(from: aircraft.destination))
             }
+            if let schedule = aircraft.schedule {
+                ScheduleTimes(schedule: schedule)
+            }
             LazyVGrid(columns: [GridItem(.flexible(), alignment: .topLeading),
                                 GridItem(.flexible(), alignment: .topLeading)], spacing: 14) {
                 ForEach(facts, id: \.title) { fact in

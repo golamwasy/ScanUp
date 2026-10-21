@@ -41,9 +41,9 @@ check(Aircraft.compassPoint(for: 359) == "N" && Aircraft.compassPoint(for: 90) =
 // MARK: Aircraft drift between refreshes
 
 func plane(distance: Int, bearing: Int, speed: Int?, track: Int?) -> Aircraft {
-    Aircraft(id: "a", callsign: nil, airline: nil, origin: nil, originCode: nil, destination: nil, destinationCode: nil,
+    Aircraft(id: "a", callsign: nil, flightNumber: nil, airline: nil, origin: nil, originCode: nil, destination: nil, destinationCode: nil,
              type: nil, registration: nil, altitudeFt: 3000, speedKt: speed, headingDeg: track, verticalRateFpm: nil,
-             distanceM: distance, bearingDeg: bearing, elevationDeg: nil, phase: nil, onGround: false)
+             distanceM: distance, bearingDeg: bearing, elevationDeg: nil, phase: nil, onGround: false, schedule: nil)
 }
 let still = plane(distance: 1000, bearing: 90, speed: 200, track: 90).projected(after: 0)
 check(close(still.distance, 1000) && close(still.bearing, 90), "no time, no movement")
@@ -150,6 +150,14 @@ MainActor.assumeIsolated {
         let late = ISO8601DateFormatter().date(from: "2026-10-22T12:00:00Z")!
         check(BoardRow.rows(for: [a1, a2], direction: .departures, now: late).last?.id == "now", "now at the end when all are past")
         check(BoardRow.rows(for: [], direction: .departures, now: noon).map(\.id) == ["now"], "an empty board is only the now line")
+
+        // A found aircraft carries the times of its flight.
+        let trackJSON = #"{"refresh_after_s":15,"aircraft":[{"id":"461f62","callsign":"FIN1406","flight_number":"AY1406","altitude_ft":36000,"distance_m":812000,"bearing_deg":224,"on_ground":false,"schedule":\#(flightJSON(number: "AY 1406", status: "en_route", utc: "2026-10-21T17:00:00Z", local: "2026-10-21T19:00:00+02:00", revised: "2026-10-21T17:10:00Z"))}]}"#
+        let tracked = try BackendClient.decode(NearbyResponse.self, from: Data(trackJSON.utf8))
+        check(tracked.aircraft[0].flightNumber == "AY1406" && tracked.aircraft[0].schedule?.flightStatus == .enRoute, "tracked aircraft with its schedule")
+        check(tracked.aircraft[0].schedule?.departure.delayMinutes == 10 && tracked.aircraft[0].schedule?.arrival.expected == nil, "times of the tracked flight")
+        let nearbyPlain = try BackendClient.decode(NearbyResponse.self, from: Data(nearbyJSON.utf8))
+        check(nearbyPlain.aircraft[0].schedule == nil && nearbyPlain.aircraft[0].flightNumber == nil, "no schedule in the nearby list")
 
         let airports = try BackendClient.decode(AirportSearchResponse.self, from: Data(#"{"airports":[{"name":"London Heathrow Airport","city":"London","iata":"LHR","icao":"EGLL","country":"GB"},{"name":"Tiny Strip","icao":"XX12"}]}"#.utf8))
         check(airports.airports.count == 2 && airports.airports[0].code == "LHR" && airports.airports[1].code == "XX12", "airport search answer")

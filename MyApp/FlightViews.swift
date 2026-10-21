@@ -335,3 +335,53 @@ private struct EndCard: View {
         return facts
     }
 }
+
+/// When a flight left and when it is due, as two columns: the best known time large, and below it whether that is real
+/// or expected, what was scheduled and how late it is. Times are on each airport's own clock.
+struct ScheduleTimes: View {
+    let schedule: ScheduledFlight
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 16) {
+                column(title: String(localized: "Departs"), symbol: "airplane.departure", end: schedule.departure, isDeparture: true)
+                column(title: String(localized: "Arrives"), symbol: "airplane.arrival", end: schedule.arrival, isDeparture: false)
+            }
+            Text("Local time at each airport")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func column(title: String, symbol: String, end: FlightEnd, isDeparture: Bool) -> some View {
+        let shown = end.expected ?? end.scheduled
+        return VStack(alignment: .leading, spacing: 3) {
+            Label(title, systemImage: symbol)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(shown?.clock ?? "—")
+                .font(.system(.title2, design: .rounded, weight: .bold))
+                .monospacedDigit()
+            Text(state(end, isDeparture: isDeparture))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Theme.accent)
+            if let detail = detail(end) {
+                Text(detail).font(.caption).foregroundStyle(end.isLate ? Theme.warning : .secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func state(_ end: FlightEnd, isDeparture: Bool) -> String {
+        if end.actual != nil { return isDeparture ? String(localized: "Took off") : String(localized: "Landed") }
+        return end.expected != nil ? String(localized: "Expected") : String(localized: "Scheduled")
+    }
+
+    /// "Scheduled 22:55 · 10 min late", shown only when there is something to compare with.
+    private func detail(_ end: FlightEnd) -> String? {
+        guard let scheduled = end.scheduled, end.expected != nil, let minutes = end.delayMinutes else { return nil }
+        let late = minutes >= 5 ? String(localized: "\(minutes) min late")
+            : minutes <= -5 ? String(localized: "\(-minutes) min early") : String(localized: "on time")
+        return String(localized: "Scheduled \(scheduled.clock) · \(late)")
+    }
+}
