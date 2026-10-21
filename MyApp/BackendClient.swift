@@ -246,6 +246,12 @@ final class BackendClient {
         return try Self.decode(AirportSearchResponse.self, from: try await perform(request)).airports
     }
 
+    /// How old an aircraft is, when it was delivered and how many seats it has. One schedule unit the first time.
+    func aircraftDetails(registration: String, configuration: BackendConfiguration) async throws -> AircraftDetails {
+        let request = try Self.makeRequest(configuration: configuration, path: "v1/aircraft/\(registration)")
+        return try Self.decode(AircraftDetails.self, from: try await perform(request))
+    }
+
     /// What is left of each data source's allowance.
     func usage(configuration: BackendConfiguration) async throws -> Usage {
         let data = try await perform(Self.makeRequest(configuration: configuration, path: "v1/usage"))

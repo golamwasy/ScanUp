@@ -48,6 +48,7 @@ struct RootView: View {
             }
         }
         .tint(Theme.accent)
+        .environment(\.aircraftLookup, AircraftLookup { await store.aircraftDetails($0) })
         .overlay {
             if showSplash {
                 SplashView { withAnimation(.easeInOut(duration: 0.4)) { showSplash = false } }

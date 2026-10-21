@@ -6,6 +6,7 @@ struct AircraftCard: View {
     /// Picked on the radar or by a tap: drawn with an outline.
     var isSelected = false
     let toggle: () -> Void
+    @State private var aircraftInfo: AircraftDetails?
 
     var body: some View {
         Button(action: toggle) {
@@ -117,6 +118,7 @@ struct AircraftCard: View {
                 }
             }
         }
+        .loadsAircraftDetails(for: aircraft.registration, into: $aircraftInfo)
     }
 
     private var facts: [Fact] {
@@ -126,6 +128,7 @@ struct AircraftCard: View {
         }
         if let registration = aircraft.registration {
             facts.append(Fact(symbol: "number", title: String(localized: "Registration"), value: registration))
+            if let age = aircraftInfo?.ageFact { facts.append(age) }
         }
         if aircraft.onGround {
             facts.append(Fact(symbol: "speedometer", title: String(localized: "Speed"),

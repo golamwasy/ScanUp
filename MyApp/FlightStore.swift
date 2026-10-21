@@ -45,6 +45,8 @@ final class FlightStore {
     @ObservationIgnored private var lastInteraction = Date()
     @ObservationIgnored private var nearbyFailures = 0
     @ObservationIgnored private var boardFailures = 0
+    @ObservationIgnored private var aircraftDetailsCache: [String: AircraftDetails] = [:]
+    @ObservationIgnored private var aircraftDetailsTasks: [String: Task<AircraftDetails?, Never>] = [:]
     /// Seconds the server asked the app to wait between board refreshes.
     @ObservationIgnored private var boardEvery = 1200.0
     /// The refresh that is running, if any. A second call waits for it instead of starting another or being skipped,
@@ -372,6 +374,24 @@ final class FlightStore {
             settingsError = error.localizedDescription
             return false
         }
+    }
+
+    /// Age and delivery of an aircraft, asked for when its details are opened, once per registration and run of the app
+    /// (the server keeps it for a week). Nil when the server cannot say, so the details simply show no age.
+    func aircraftDetails(_ registration: String) async -> AircraftDetails? {
+        let key = registration.uppercased()
+        if let known = aircraftDetailsCache[key] { return known }
+        guard let configuration else { return nil }
+        if let running = aircraftDetailsTasks[key] { return await running.value }
+        let task = Task { () -> AircraftDetails? in
+            let answer = try? await client.aircraftDetails(registration: key, configuration: configuration)
+            // An answer with a notice (no key, allowance used) is not kept: it may be different next time.
+            if let answer, answer.notice == nil { aircraftDetailsCache[key] = answer }
+            aircraftDetailsTasks[key] = nil
+            return answer
+        }
+        aircraftDetailsTasks[key] = task
+        return await task.value
     }
 
     /// Asks the server what is left of each allowance. Keeps the last answer if the server cannot be reached.

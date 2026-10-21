@@ -191,6 +191,14 @@ MainActor.assumeIsolated {
         let landedJSON = #"{"refresh_after_s":15,"aircraft":[],"schedule":\#(flightJSON(number: "AY 1549", status: "arrived", utc: "2026-10-21T17:57:00Z", local: "2026-10-21T20:57:00+03:00"))}"#
         let landed = try BackendClient.decode(NearbyResponse.self, from: Data(landedJSON.utf8))
         check(landed.aircraft.isEmpty && landed.schedule?.flightStatus == .arrived && landed.schedule?.number == "AY 1549", "a landed flight comes as a schedule without aircraft")
+        let details = try BackendClient.decode(AircraftDetails.self, from: Data(#"{"registration":"OH-LXF","age_years":24.8,"delivered":"2002-02-28","first_flight":"2002-01-21","seats":174,"model":"Airbus A320"}"#.utf8))
+        check(details.ageText?.contains("24") == true && details.ageText?.contains("years") == true, "age text: \(details.ageText ?? "nil")")
+        check(details.ageDetail?.contains("2002") == true && details.ageDetail?.contains("174") == true, "delivery and seats: \(details.ageDetail ?? "nil")")
+        let unknownAircraft = try BackendClient.decode(AircraftDetails.self, from: Data(#"{"registration":"OH-ZZZ"}"#.utf8))
+        check(unknownAircraft.ageText == nil && unknownAircraft.ageDetail == nil, "an unknown aircraft shows no age")
+        let brandNew = try BackendClient.decode(AircraftDetails.self, from: Data(#"{"registration":"X","age_years":0.3}"#.utf8))
+        check(brandNew.ageText?.contains("4") == true, "a new aircraft is told in months: \(brandNew.ageText ?? "nil")")
+        check(AircraftDetails.monthAndYear("soon") == nil && AircraftDetails.monthAndYear(nil) == nil, "bad dates show nothing")
         let nearbyPlain = try BackendClient.decode(NearbyResponse.self, from: Data(nearbyJSON.utf8))
         check(nearbyPlain.aircraft[0].schedule == nil && nearbyPlain.aircraft[0].flightNumber == nil, "no schedule in the nearby list")
 

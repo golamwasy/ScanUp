@@ -314,6 +314,49 @@ enum BoardPaging {
     }
 }
 
+/// What the server knows of one aircraft: how old it is, when it was delivered and how many seats it has.
+struct AircraftDetails: Decodable, Equatable {
+    let registration: String
+    let ageYears: Double?
+    /// "2002-02-28".
+    let delivered: String?
+    let firstFlight: String?
+    let seats: Int?
+    let model: String?
+    let notice: String?
+
+    /// "24.8 years", or "5 months" for a new aircraft. Nil when the age is not known.
+    var ageText: String? {
+        guard let ageYears, ageYears >= 0 else { return nil }
+        if ageYears < 1 {
+            let months = max(1, Int((ageYears * 12).rounded()))
+            return String(localized: "\(months) months")
+        }
+        return String(localized: "\(ageYears.formatted(.number.precision(.fractionLength(1)))) years")
+    }
+
+    /// "Delivered Feb 2002 · 174 seats".
+    var ageDetail: String? {
+        let parts = [Self.monthAndYear(delivered ?? firstFlight).map { String(localized: "Delivered \($0)") },
+                     seats.map { String(localized: "\($0) seats") }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// "2002-02-28" as "Feb 2002", in the phone's language.
+    static func monthAndYear(_ day: String?) -> String? {
+        guard let day else { return nil }
+        let reader = DateFormatter()
+        reader.locale = Locale(identifier: "en_US_POSIX")
+        reader.timeZone = TimeZone(secondsFromGMT: 0)
+        reader.dateFormat = "yyyy-MM-dd"
+        guard let date = reader.date(from: day) else { return nil }
+        let writer = DateFormatter()
+        writer.timeZone = TimeZone(secondsFromGMT: 0)
+        writer.setLocalizedDateFormatFromTemplate("MMM yyyy")
+        return writer.string(from: date)
+    }
+}
+
 enum TrackQuery {
     /// "ay 1406" becomes "AY1406"; nil when it cannot be a flight number, callsign or registration. The same rule as
     /// the server, so a typing mistake does not cost a request: letters, digits and hyphens, two to ten of them.

@@ -194,6 +194,7 @@ struct NowMarker: View {
 /// Everything known about a flight: both airports with their times and details, and the aircraft.
 struct FlightDetailView: View {
     let flight: ScheduledFlight
+    @State private var aircraftInfo: AircraftDetails?
 
     var body: some View {
         ScrollView {
@@ -224,6 +225,7 @@ struct FlightDetailView: View {
             .padding(16)
         }
         .background(SkyBackground())
+        .loadsAircraftDetails(for: flight.registration, into: $aircraftInfo)
         .navigationTitle(flight.number)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -252,6 +254,7 @@ struct FlightDetailView: View {
         }
         if let registration = flight.registration {
             facts.append(Fact(symbol: "number", title: String(localized: "Registration"), value: registration))
+            if let age = aircraftInfo?.ageFact { facts.append(age) }
         }
         if let callsign = flight.callsign {
             facts.append(Fact(symbol: "dot.radiowaves.left.and.right", title: String(localized: "Callsign"), value: callsign))
@@ -398,5 +401,50 @@ struct ScheduleTimes: View {
         let late = minutes >= 5 ? String(localized: "\(minutes) min late")
             : minutes <= -5 ? String(localized: "\(-minutes) min early") : String(localized: "on time")
         return String(localized: "Scheduled \(scheduled.clock)\n\(late)")
+    }
+}
+
+/// How to ask for the age of an aircraft, handed down to the screens that show an aircraft's details.
+struct AircraftLookup {
+    let load: @MainActor @Sendable (String) async -> AircraftDetails?
+}
+
+private struct AircraftLookupKey: EnvironmentKey {
+    static var defaultValue: AircraftLookup? { nil }
+}
+
+extension EnvironmentValues {
+    var aircraftLookup: AircraftLookup? {
+        get { self[AircraftLookupKey.self] }
+        set { self[AircraftLookupKey.self] = newValue }
+    }
+}
+
+/// Asks for the age of an aircraft when the view appears and hands the answer over (one request, kept by the server for a
+/// week). The view shows nothing about it until the answer is there, and nothing at all when the age is not known.
+private struct LoadsAircraftDetails: ViewModifier {
+    let registration: String?
+    @Binding var details: AircraftDetails?
+    @Environment(\.aircraftLookup) private var lookup
+
+    func body(content: Content) -> some View {
+        content.task(id: registration) {
+            guard let registration else { return }
+            let answer = await lookup?.load(registration)
+            withAnimation(.smooth) { details = answer }
+        }
+    }
+}
+
+extension View {
+    func loadsAircraftDetails(for registration: String?, into details: Binding<AircraftDetails?>) -> some View {
+        modifier(LoadsAircraftDetails(registration: registration, details: details))
+    }
+}
+
+extension AircraftDetails {
+    /// "Aircraft age: 24.8 years, Delivered Feb 2002 · 174 seats", or nil when the age is not known.
+    var ageFact: Fact? {
+        ageText.map { Fact(symbol: "calendar", title: String(localized: "Aircraft age"), value: $0, detail: ageDetail) }
     }
 }
