@@ -1,7 +1,7 @@
 import CoreLocation
 
-/// A fixed place the app can use instead of the phone's position, to try it without travelling. Both are near
-/// Helsinki-Vantaa Airport.
+/// A fixed place the app can use instead of the phone's position, to try it without travelling: the airport itself and
+/// the centre of Helsinki, 17 km away.
 struct TestLocation: Equatable, Identifiable {
     let id: Int
     let name: String
@@ -9,8 +9,8 @@ struct TestLocation: Equatable, Identifiable {
     let longitude: Double
 
     static let all = [
-        TestLocation(id: 0, name: "Location 1", latitude: 60.317200, longitude: 24.963300),
-        TestLocation(id: 1, name: "Location 2", latitude: 60.171900, longitude: 24.941400),
+        TestLocation(id: 0, name: "Location 1", latitude: 60.3172, longitude: 24.9633),
+        TestLocation(id: 1, name: "Location 2", latitude: 60.1719, longitude: 24.9414),
     ]
 
     /// The place with this number. A number that is not on the list, such as one left by an older version, is the first.

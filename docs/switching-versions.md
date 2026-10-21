@@ -17,7 +17,7 @@ A **branch** is a line of work that moves forward when you commit. A **tag** is 
 1. Quit Xcode (or at least close the project), so it does not fight the switch.
 2. In a terminal:
    ```sh
-   cd ~/code/ScanUp
+   cd path/to/ScanUp
    git status                        # must say "nothing to commit, working tree clean"
    git switch backup/before-schedules
    ```
@@ -26,7 +26,7 @@ A **branch** is a line of work that moves forward when you commit. A **tag** is 
 ## Go back to the new version
 
 ```sh
-cd ~/code/ScanUp
+cd path/to/ScanUp
 git status
 git switch main
 ```
