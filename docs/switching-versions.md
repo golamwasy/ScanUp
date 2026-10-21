@@ -7,8 +7,8 @@ You can go back and forth between the old and the new version of the app with tw
 | Name | What it is |
 |---|---|
 | `before-schedules` (tag) and `backup/before-schedules` (branch) | The app as it was before the airport boards and flight search, the working version of 2026-10-21. Never changes. |
-| `main` | The newest version. Today it is the same as `before-schedules`; after the schedule features are finished it is the new one. |
-| `feature/schedules` | The new work while it is being built. |
+| `main` | The newest version: airport boards with earlier and later flights, and Search for a plane by flight number, callsign or registration (merged 2026-10-21). |
+| `feature/schedules` | The branch the new version was built on. Same as `main` now; it can be deleted. |
 
 A **branch** is a line of work that moves forward when you commit. A **tag** is a bookmark on one exact commit that never moves. Both are on GitHub: https://github.com/golamwasy/ScanUp
 
@@ -28,7 +28,7 @@ A **branch** is a line of work that moves forward when you commit. A **tag** is 
 ```sh
 cd ~/code/ScanUp
 git status
-git switch main                      # or: git switch feature/schedules  while it is in progress
+git switch main
 ```
 
 Then open Xcode and Run.
