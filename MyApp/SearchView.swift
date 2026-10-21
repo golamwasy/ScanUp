@@ -8,6 +8,8 @@ final class AircraftSearchModel {
 
     var text = ""
     private(set) var aircraft: [Aircraft] = []
+    /// When no aircraft is heard: what the schedule knows of the flight (it has landed, or has not left).
+    private(set) var timetable: ScheduledFlight?
     /// What the answer on screen was asked for.
     private(set) var searched: String?
     private(set) var foundAt: Date?
@@ -33,7 +35,8 @@ final class AircraftSearchModel {
         do {
             let found = try await store.track(query: normalised)
             guard mine == generation else { return }
-            aircraft = found
+            aircraft = found.aircraft
+            timetable = found.schedule
             foundAt = Date()
             problem = nil
             searched = normalised
@@ -45,6 +48,7 @@ final class AircraftSearchModel {
             guard mine == generation else { return }
             problem = store.problem(for: error)
             aircraft = []
+            timetable = nil
             searched = normalised
         }
         isLoading = false
@@ -59,6 +63,7 @@ final class AircraftSearchModel {
         generation += 1
         isLoading = false
         aircraft = []
+        timetable = nil
         searched = nil
         problem = nil
         hint = nil
@@ -141,6 +146,9 @@ struct SearchView: View {
             ProblemCard(problem: problem, failureTitle: String(localized: "Couldn’t search"), openSettingsTab: openSettingsTab) {
                 search(model.searched)
             }
+        } else if let searched = model.searched, model.aircraft.isEmpty, let timetable = model.timetable {
+            NotFlyingCard(searched: searched, flight: timetable)
+            footnote
         } else if let searched = model.searched, model.aircraft.isEmpty {
             MessageCard(systemImage: "antenna.radiowaves.left.and.right.slash", title: String(localized: "\(searched) is not on the radar"),
                         message: String(localized: "No aircraft is sending a signal under that name right now. It may not be in the air yet, may have landed, may be out of range of the receivers, or may fly under another callsign. Try its callsign or registration."))
@@ -229,5 +237,40 @@ private struct FlowRow: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+/// A flight that is in the schedule but not on the radar: it has landed, or has not left yet. Shows what the schedule
+/// says, with the real and expected times.
+private struct NotFlyingCard: View {
+    let searched: String
+    let flight: ScheduledFlight
+
+    private var headline: String {
+        switch flight.flightStatus {
+        case .arrived: String(localized: "\(flight.number) has landed")
+        case .canceled: String(localized: "\(flight.number) was cancelled")
+        case .expected, .checkIn, .boarding, .gateClosed, .delayed: String(localized: "\(flight.number) has not left yet")
+        default: String(localized: "\(flight.number) is not on the radar")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 14) {
+                InitialsBadge(initials: flight.initials, seed: flight.colorSeed, size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(headline).font(.headline)
+                    Text("Not on the radar right now").font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            RouteView(fromCode: flight.departure.airport.code, fromCity: flight.departure.airport.shortName,
+                      toCode: flight.arrival.airport.code, toCity: flight.arrival.airport.shortName)
+            if flight.flightStatus != .canceled { ScheduleTimes(schedule: flight) }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardBackground()
     }
 }

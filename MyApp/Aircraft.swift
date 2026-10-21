@@ -31,6 +31,8 @@ struct NearbyResponse: Decodable {
     let aircraft: [Aircraft]
     /// Seconds the backend asks the app to wait before the next refresh.
     let refreshAfterS: Int?
+    /// In a search answer with no aircraft: the flight's place in the schedule (landed, not yet left).
+    @Lenient var schedule: ScheduledFlight?
 }
 
 enum VerticalTrend {

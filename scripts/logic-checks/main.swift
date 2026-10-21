@@ -188,6 +188,9 @@ MainActor.assumeIsolated {
         let badSchedule = #"{"refresh_after_s":15,"aircraft":[{"id":"a","distance_m":1,"bearing_deg":2,"on_ground":false,"schedule":{"number":"AY 1"}}]}"#
         let keptPlane = try BackendClient.decode(NearbyResponse.self, from: Data(badSchedule.utf8))
         check(keptPlane.aircraft.count == 1 && keptPlane.aircraft[0].schedule == nil, "a broken schedule does not hide the aircraft")
+        let landedJSON = #"{"refresh_after_s":15,"aircraft":[],"schedule":\#(flightJSON(number: "AY 1549", status: "arrived", utc: "2026-10-21T17:57:00Z", local: "2026-10-21T20:57:00+03:00"))}"#
+        let landed = try BackendClient.decode(NearbyResponse.self, from: Data(landedJSON.utf8))
+        check(landed.aircraft.isEmpty && landed.schedule?.flightStatus == .arrived && landed.schedule?.number == "AY 1549", "a landed flight comes as a schedule without aircraft")
         let nearbyPlain = try BackendClient.decode(NearbyResponse.self, from: Data(nearbyJSON.utf8))
         check(nearbyPlain.aircraft[0].schedule == nil && nearbyPlain.aircraft[0].flightNumber == nil, "no schedule in the nearby list")
 

@@ -274,11 +274,11 @@ final class FlightStore {
     }
 
     /// The aircraft heard right now under a flight number, callsign or registration, with distance and direction from here.
-    func track(query: String) async throws -> [Aircraft] {
+    func track(query: String) async throws -> (aircraft: [Aircraft], schedule: ScheduledFlight?) {
         let (configuration, position) = try await prepare()
         let response = try await client.track(query: query, latitude: position.coordinate.latitude,
                                               longitude: position.coordinate.longitude, configuration: configuration)
-        return Self.unique(response.aircraft)
+        return (Self.unique(response.aircraft), response.schedule)
     }
 
     /// Airports for a code, a city or a name. Free.
