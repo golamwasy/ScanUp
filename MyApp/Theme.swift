@@ -27,6 +27,8 @@ enum Theme {
     static let cardBorder = Color(light: Color.black.opacity(0.06), dark: Color.white.opacity(0.10))
     static let warning = Color(light: Color(red: 0.80, green: 0.42, blue: 0.0),
                                dark: Color(red: 1.0, green: 0.70, blue: 0.30))
+    static let danger = Color(light: Color(red: 0.78, green: 0.16, blue: 0.16),
+                              dark: Color(red: 1.0, green: 0.46, blue: 0.43))
     static let positive = Color(light: Color(red: 0.05, green: 0.55, blue: 0.30),
                                 dark: Color(red: 0.40, green: 0.85, blue: 0.55))
 
@@ -66,8 +68,19 @@ struct AirlineBadge: View {
     var size: CGFloat = 46
 
     var body: some View {
-        let hue = Double(aircraft.colorSeed % 360) / 360
-        Text(aircraft.initials)
+        InitialsBadge(initials: aircraft.initials, seed: aircraft.colorSeed, size: size)
+    }
+}
+
+/// Round badge with a few letters on a colour chosen by `seed`.
+struct InitialsBadge: View {
+    let initials: String
+    let seed: Int
+    var size: CGFloat = 46
+
+    var body: some View {
+        let hue = Double(seed % 360) / 360
+        Text(initials)
             .font(.system(size: size * 0.36, weight: .bold, design: .rounded))
             .foregroundStyle(.white)
             .frame(width: size, height: size)

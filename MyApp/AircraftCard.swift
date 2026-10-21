@@ -104,7 +104,8 @@ struct AircraftCard: View {
         VStack(alignment: .leading, spacing: 16) {
             Rectangle().fill(Theme.cardBorder).frame(height: 1).padding(.top, 14)
             if aircraft.hasRoute {
-                RouteRow(aircraft: aircraft)
+                RouteView(fromCode: aircraft.originCode, fromCity: Aircraft.city(from: aircraft.origin),
+                          toCode: aircraft.destinationCode, toCity: Aircraft.city(from: aircraft.destination))
             }
             LazyVGrid(columns: [GridItem(.flexible(), alignment: .topLeading),
                                 GridItem(.flexible(), alignment: .topLeading)], spacing: 14) {
@@ -153,14 +154,14 @@ struct AircraftCard: View {
     }
 }
 
-private struct Fact {
+struct Fact {
     let symbol: String
     let title: String
     let value: String
     var detail: String?
 }
 
-private struct FactView: View {
+struct FactView: View {
     let fact: Fact
 
     var body: some View {
@@ -186,13 +187,16 @@ private struct FactView: View {
     }
 }
 
-/// Where the flight started and where it is going.
-private struct RouteRow: View {
-    let aircraft: Aircraft
+/// Where the flight started and where it is going: two codes with their cities and a dashed line between.
+struct RouteView: View {
+    let fromCode: String?
+    let fromCity: String?
+    let toCode: String?
+    let toCity: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            end(code: aircraft.originCode, place: aircraft.origin, alignment: .leading)
+            end(code: fromCode, place: fromCity, alignment: .leading)
             HStack(spacing: 6) {
                 DashedLine().stroke(Theme.accent.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
                     .frame(height: 2)
@@ -203,11 +207,11 @@ private struct RouteRow: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 10)
-            end(code: aircraft.destinationCode, place: aircraft.destination, alignment: .trailing)
+            end(code: toCode, place: toCity, alignment: .trailing)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Route")
-        .accessibilityValue("\(aircraft.origin ?? "unknown") to \(aircraft.destination ?? "unknown")")
+        .accessibilityValue("\(fromCity ?? fromCode ?? "unknown") to \(toCity ?? toCode ?? "unknown")")
     }
 
     private func end(code: String?, place: String?, alignment: HorizontalAlignment) -> some View {
@@ -215,7 +219,7 @@ private struct RouteRow: View {
             Text(code ?? "—")
                 .font(.system(.title2, design: .rounded, weight: .bold))
                 .foregroundStyle(.primary)
-            Text(Aircraft.city(from: place) ?? " ")
+            Text(place ?? " ")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

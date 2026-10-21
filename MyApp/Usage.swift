@@ -24,6 +24,26 @@ struct Usage: Decodable, Equatable {
         let checkedAt: Date?
     }
 
+    /// The flight schedule service (airport boards and flight search): units left this month.
+    struct FlightSchedules: Decodable, Equatable {
+        let enabled: Bool
+        /// What the service last said is left this month, or the server's estimate before its first answer.
+        let remaining: Int?
+        let monthlyLimit: Int?
+        /// When the service's month starts again. Absent until the service has answered once.
+        let resetsAt: Date?
+        let usedLast30Days: Int
+
+        var fractionUsed: Double {
+            guard let remaining, let monthlyLimit, monthlyLimit > 0 else { return 0 }
+            return min(1, max(0, Double(monthlyLimit - remaining) / Double(monthlyLimit)))
+        }
+        /// Less than a fifth left.
+        var isRunningLow: Bool { fractionUsed > 0.8 }
+    }
+
     let adsbLol: AdsbLol
     let opensky: OpenSky
+    /// Absent from servers older than the schedule features.
+    let flightSchedules: FlightSchedules?
 }

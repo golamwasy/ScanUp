@@ -6,6 +6,6 @@ app="$here/../../MyApp"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 swiftc -swift-version 5 -o "$out/checks" \
-    "$app/Compass.swift" "$app/Aircraft.swift" "$app/Feed.swift" "$app/TestLocation.swift" "$app/Usage.swift" "$app/LocationFailure.swift" \
+    "$app/Compass.swift" "$app/Aircraft.swift" "$app/Feed.swift" "$app/TestLocation.swift" "$app/Usage.swift" "$app/Schedule.swift" "$app/LocationFailure.swift" \
     "$app/BackendClient.swift" "$here/main.swift"
 "$out/checks"

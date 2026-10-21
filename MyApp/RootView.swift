@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AppTab: Hashable {
-    case overhead, airport, settings
+    case overhead, airport, flights, settings
 }
 
 struct RootView: View {
@@ -19,6 +19,8 @@ struct RootView: View {
         let isPaused: Bool
         /// Which fake location is in use, if any. A change starts the refresh loop again with the new position.
         let testPlace: Int?
+        /// The airport picked on the Airport tab. Picking another one loads its board at once.
+        let chosenAirport: String?
     }
 
     /// The compass runs only while the Overhead radar is on screen.
@@ -27,7 +29,7 @@ struct RootView: View {
     private var refreshKey: RefreshKey {
         RefreshKey(tab: selection, isActive: scenePhase == .active,
                    isReady: store.isConfigurationLoaded, isConfigured: store.configuration != nil,
-                   isPaused: store.isPaused, testPlace: store.testLocation?.id)
+                   isPaused: store.isPaused, testPlace: store.testLocation?.id, chosenAirport: store.chosenAirport?.id)
     }
 
     var body: some View {
@@ -40,6 +42,9 @@ struct RootView: View {
             }
             Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
                 SettingsView(store: store)
+            }
+            Tab("Flights", systemImage: "magnifyingglass", value: AppTab.flights, role: .search) {
+                FlightsView(store: store) { selection = .settings }
             }
         }
         .tint(Theme.accent)
@@ -56,18 +61,20 @@ struct RootView: View {
         .onChange(of: wantsCompass, initial: true) { _, wanted in store.location.setCompass(wanted) }
         .onChange(of: selection) { _, tab in
             store.noteInteraction()
-            if tab == .settings { Task { await store.refreshUsage() } }
+            // Settings shows what is left of each allowance, and the Flights tab what a search costs.
+            if tab == .settings || tab == .flights { Task { await store.refreshUsage() } }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { store.noteInteraction() }
         }
-        // Refreshes only while a list is on screen and the app is open. The server says how long to wait between
-        // them, failures wait longer, and with no touch for a while it stops until the next one.
+        // Refreshes only while a list is on screen and the app is open: the Overhead aircraft every few seconds, the
+        // Airport board every few minutes. The server says how long to wait between them, failures wait longer, and
+        // with no touch for a while it stops until the next one. The Flights tab only asks when a search is made.
         .task(id: refreshKey) {
             let key = refreshKey
-            guard key.isActive, key.isReady, !key.isPaused, key.tab != .settings else { return }
+            guard key.isActive, key.isReady, !key.isPaused, key.tab == .overhead || key.tab == .airport else { return }
             while !Task.isCancelled {
-                let wait = key.tab == .overhead ? await store.refreshNearby() : await store.refreshGround()
+                let wait = key.tab == .overhead ? await store.refreshNearby() : await store.refreshBoard()
                 if store.pauseIfIdle() { return }
                 try? await Task.sleep(for: wait)
             }

@@ -4,14 +4,47 @@ import SwiftUI
 /// pulsing green dot and the text says what was found. When the data is old, a refresh failed, refreshing paused, or
 /// the first answer is on its way, the text says that instead, with a matching icon and colour.
 struct StatusLine: View {
+    /// What the line needs to know about a list.
+    struct ListState: Equatable {
+        var problem: FeedProblem?
+        var hasLoaded: Bool
+        var isLoading: Bool
+        var updatedAt: Date?
+        var count: Int
+    }
+
     let summary: String
-    let feed: Feed
+    let state: ListState
     let isPaused: Bool
+    /// Time after a successful refresh at which the list counts as old.
+    let staleAfter: Duration
     let resume: () -> Void
     let retry: () -> Void
-    /// Seconds after a successful refresh at which the list counts as old.
-    private static let staleAfter: Duration = .seconds(40)
     @State private var isStale = false
+
+    /// The Overhead list, which refreshes every few seconds.
+    init(summary: String, feed: Feed, isPaused: Bool, resume: @escaping () -> Void, retry: @escaping () -> Void) {
+        self.init(summary: summary, state: ListState(problem: feed.problem, hasLoaded: feed.hasLoaded, isLoading: feed.isLoading,
+                                                     updatedAt: feed.updatedAt, count: feed.aircraft.count),
+                  isPaused: isPaused, staleAfter: .seconds(40), resume: resume, retry: retry)
+    }
+
+    /// The Airport board, which refreshes every ten minutes.
+    init(summary: String, board: BoardFeed, isPaused: Bool, resume: @escaping () -> Void, retry: @escaping () -> Void) {
+        self.init(summary: summary, state: ListState(problem: board.problem, hasLoaded: board.hasLoaded, isLoading: board.isLoading,
+                                                     updatedAt: board.updatedAt, count: board.departures.count + board.arrivals.count),
+                  isPaused: isPaused, staleAfter: .seconds(20 * 60), resume: resume, retry: retry)
+    }
+
+    init(summary: String, state: ListState, isPaused: Bool, staleAfter: Duration, resume: @escaping () -> Void,
+         retry: @escaping () -> Void) {
+        self.summary = summary
+        self.state = state
+        self.isPaused = isPaused
+        self.staleAfter = staleAfter
+        self.resume = resume
+        self.retry = retry
+    }
 
     private enum Mode {
         case paused, failed, updating, stale, live
@@ -19,9 +52,9 @@ struct StatusLine: View {
 
     private var mode: Mode? {
         if isPaused { return .paused }
-        if feed.problem != nil, feed.hasLoaded { return .failed }
-        if feed.isLoading, !feed.hasLoaded { return .updating }
-        guard feed.updatedAt != nil else { return nil }
+        if state.problem != nil, state.hasLoaded { return .failed }
+        if state.isLoading, !state.hasLoaded { return .updating }
+        guard state.updatedAt != nil else { return nil }
         return isStale ? .stale : .live
     }
 
@@ -33,9 +66,9 @@ struct StatusLine: View {
             .id(mode)
             .transition(.opacity)
             .animation(.smooth, value: mode)
-            .task(id: feed.updatedAt) {
+            .task(id: state.updatedAt) {
                 isStale = false
-                try? await Task.sleep(for: Self.staleAfter)
+                try? await Task.sleep(for: staleAfter)
                 if !Task.isCancelled { isStale = true }
             }
     }
@@ -61,15 +94,15 @@ struct StatusLine: View {
             // The wording follows the clock without a timer ticking every second.
             line(Image(systemName: "clock.fill"), tint: Theme.warning) {
                 TimelineView(.periodic(from: .now, by: 15)) { _ in
-                    Text("Updated \(feed.updatedAt?.formatted(.relative(presentation: .numeric, unitsStyle: .wide)) ?? "")")
+                    Text("Updated \(state.updatedAt?.formatted(.relative(presentation: .numeric, unitsStyle: .wide)) ?? "")")
                 }
             }
         case .live:
             line(Image(systemName: "circle.fill").font(.system(size: 8)).foregroundStyle(Theme.positive)
-                    .symbolEffect(.bounce, value: feed.updatedAt), tint: .secondary) {
+                    .symbolEffect(.bounce, value: state.updatedAt), tint: .secondary) {
                 Text(summary)
                     .contentTransition(.numericText())
-                    .animation(.smooth, value: feed.aircraft.count)
+                    .animation(.smooth, value: state.count)
             }
         case nil:
             Text(summary).foregroundStyle(.secondary)
@@ -167,6 +200,8 @@ struct SkeletonList: View {
 /// The problem a tab has, with the action that fixes it.
 struct ProblemCard: View {
     let problem: FeedProblem
+    /// What could not be loaded, for the failure message's title.
+    var failureTitle = String(localized: "Couldn’t load aircraft")
     let openSettingsTab: () -> Void
     let retry: () -> Void
     @Environment(\.openURL) private var openURL
@@ -190,7 +225,7 @@ struct ProblemCard: View {
                 if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
             }
         case .failed(let message):
-            MessageCard(systemImage: "wifi.exclamationmark", title: String(localized: "Couldn’t load aircraft"),
+            MessageCard(systemImage: "wifi.exclamationmark", title: failureTitle,
                         message: message, tint: Theme.warning,
                         actionTitle: String(localized: "Try again"), action: retry)
         }

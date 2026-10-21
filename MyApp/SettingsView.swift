@@ -166,6 +166,9 @@ struct SettingsView: View {
             if let usage = store.usage {
                 adsbRow(usage.adsbLol)
                 openSkyRow(usage.opensky)
+                if let schedules = usage.flightSchedules {
+                    schedulesRow(schedules)
+                }
             } else if store.isLoadingUsage {
                 HStack {
                     Text("Checking…").foregroundStyle(.secondary)
@@ -231,6 +234,35 @@ struct SettingsView: View {
     private static func freeUpText(for date: Date) -> String {
         let time = date.formatted(date: .omitted, time: .shortened)
         return Calendar.current.isDateInToday(date) ? String(localized: "at \(time)") : String(localized: "tomorrow at \(time)")
+    }
+
+    private func schedulesRow(_ schedules: Usage.FlightSchedules) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Flight schedules")
+                Text("boards, search").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if !schedules.enabled {
+                    Text("Not set up").foregroundStyle(.secondary)
+                } else if let remaining = schedules.remaining {
+                    Text("\(remaining) left")
+                        .font(.body.weight(.semibold))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .foregroundStyle(schedules.isRunningLow ? Theme.warning : .primary)
+                }
+            }
+            if schedules.enabled {
+                ProgressView(value: schedules.fractionUsed)
+                    .tint(schedules.isRunningLow ? Theme.warning : Theme.accent)
+                Text(schedules.resetsAt.map { String(localized: "A board uses 4, a search 2. Renews on \($0.formatted(date: .abbreviated, time: .omitted)).") }
+                     ?? String(localized: "A board uses 4, a search 2, each month."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+        .animation(.smooth, value: schedules)
     }
 
     private func openSkyRow(_ openSky: Usage.OpenSky) -> some View {
@@ -327,7 +359,7 @@ struct SettingsView: View {
         } header: {
             Text("About")
         } footer: {
-            Text("Aircraft positions come from OpenSky Network and ADSB.lol. Airlines, routes and aircraft types come from adsbdb.")
+            Text("Aircraft positions come from OpenSky Network and ADSB.lol. Airlines, routes and aircraft types come from adsbdb. Flight schedules (airport boards and flight search) by AeroDataBox.")
         }
     }
 }

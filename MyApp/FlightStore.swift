@@ -29,24 +29,26 @@ final class FlightStore {
     private static let intervalRange = 10.0...120.0
     private static let longestBackOff = 60.0
     private static let longestServerWait = 300.0
+    /// Boards change slowly and cost units of a small allowance, so they refresh every few minutes at most.
+    private static let boardIntervalRange = 60.0...1800.0
+    private static let defaultBoardInterval = 600.0
 
     let location = LocationFetcher()
     private let client = BackendClient()
     @ObservationIgnored private var lastInteraction = Date()
     @ObservationIgnored private var nearbyFailures = 0
-    @ObservationIgnored private var groundFailures = 0
+    @ObservationIgnored private var boardFailures = 0
     /// The refresh that is running, if any. A second call waits for it instead of starting another or being skipped,
     /// and it is not cancelled when the person changes tab, so its answer is not wasted.
     @ObservationIgnored private var nearbyTask: Task<Duration, Never>?
-    @ObservationIgnored private var groundTask: Task<Duration, Never>?
+    @ObservationIgnored private var boardTask: Task<Duration, Never>?
 
     private(set) var configuration: BackendConfiguration?
     private(set) var isConfigurationLoaded = false
     private(set) var nearby = Feed()
-    private(set) var ground = Feed()
-    private(set) var airport: AirportInfo?
-    /// Which data source answered the last airport refresh.
-    private(set) var groundSource: String?
+    private(set) var board = BoardFeed()
+    /// The airport picked in the search, or nil for the nearest one. Not saved: the app opens on the nearest airport.
+    private(set) var chosenAirport: Place?
     private(set) var connectionTest = ConnectionTest.idle
     /// Auto-refresh stopped because nobody touched the app for a while. Any touch starts it again.
     private(set) var isPaused = false
@@ -99,12 +101,22 @@ final class FlightStore {
     private func positionSourceChanged() {
         nearby = Feed()
         nearby.isLoading = nearbyTask != nil
-        ground = Feed()
-        ground.isLoading = groundTask != nil
-        airport = nil
-        groundSource = nil
         nearbyFailures = 0
-        groundFailures = 0
+        // A picked airport does not depend on the position; the nearest one does.
+        if chosenAirport == nil { resetBoard() }
+    }
+
+    private func resetBoard() {
+        board = BoardFeed()
+        board.isLoading = boardTask != nil
+        boardFailures = 0
+    }
+
+    /// Shows the board of another airport, or of the nearest one again (nil). The refresh loop loads it at once.
+    func chooseAirport(_ place: Place?) {
+        guard place != chosenAirport else { return }
+        chosenAirport = place
+        resetBoard()
     }
     var serverAddress: String { configuration?.baseURL.absoluteString ?? BackendConfiguration.suggestedURL }
 
@@ -162,53 +174,81 @@ final class FlightStore {
         }
     }
 
-    /// Refreshes the Airport list. Returns how long to wait before the next refresh.
+    /// Refreshes the Airport board. Returns how long to wait before the next refresh.
     @discardableResult
-    func refreshGround() async -> Duration {
-        guard isConfigurationLoaded else { return Self.interval(nil) }
-        if let running = groundTask { return await running.value }
+    func refreshBoard() async -> Duration {
+        guard isConfigurationLoaded else { return Self.boardInterval(nil) }
+        if let running = boardTask { return await running.value }
         let task = Task { () -> Duration in
-            let wait = await performGround()
-            groundTask = nil
-            ground.isLoading = false
+            let wait = await performBoard()
+            boardTask = nil
+            board.isLoading = false
             return wait
         }
-        groundTask = task
+        boardTask = task
         return await task.value
     }
 
-    private func performGround() async -> Duration {
-        ground.isLoading = true
+    private func performBoard() async -> Duration {
+        board.isLoading = true
+        let requestedAirport = chosenAirport
         let requestedPlace = testLocation
         do {
-            let (configuration, position) = try await prepare()
-            let response = try await client.airport(latitude: position.coordinate.latitude,
-                                                    longitude: position.coordinate.longitude,
-                                                    configuration: configuration)
-            // The place was changed while this was on its way, so the answer is for the wrong position.
-            guard requestedPlace == testLocation else { return .seconds(1) }
-            airport = response.airport
-            groundSource = response.source
-            ground.aircraft = Self.unique(response.aircraft)
-            ground.updatedAt = Date()
-            ground.problem = nil
-            ground.failures = 0
-            groundFailures = 0
-            return Self.interval(response.refreshAfterS)
+            let request: BoardRequest
+            let configuration: BackendConfiguration
+            if let requestedAirport, let code = requestedAirport.icao ?? requestedAirport.iata {
+                guard let saved = self.configuration else { throw StoreError.notConfigured }
+                (configuration, request) = (saved, BoardRequest(code: code, latitude: nil, longitude: nil))
+            } else {
+                let (saved, position) = try await prepare()
+                (configuration, request) = (saved, BoardRequest(code: nil, latitude: position.coordinate.latitude,
+                                                                longitude: position.coordinate.longitude))
+            }
+            let response = try await client.board(request, configuration: configuration)
+            // Another airport or position was picked while this was on its way, so it is the wrong board.
+            guard requestedAirport == chosenAirport, requestedPlace == testLocation else { return .seconds(1) }
+            board.airport = response.airport
+            board.departures = Self.unique(response.departures)
+            board.arrivals = Self.unique(response.arrivals)
+            board.dataTime = response.updatedAt
+            board.updatedAt = Date()
+            board.notice = response.notice.flatMap(ScheduleNotice.init(rawValue:))
+            board.problem = nil
+            board.failures = 0
+            boardFailures = 0
+            return Self.boardInterval(response.refreshAfterS)
         } catch is CancellationError {
-            return Self.interval(nil)
+            return Self.boardInterval(nil)
         } catch {
-            ground.problem = problem(for: error)
-            let wait = Self.backOff(after: error, failures: &groundFailures)
-            ground.failures = groundFailures
+            board.problem = problem(for: error)
+            let wait = Self.backOff(after: error, failures: &boardFailures)
+            board.failures = boardFailures
             return wait
         }
     }
 
-    /// One entry per aircraft. A list with a repeated id would confuse the list view.
-    private static func unique(_ aircraft: [Aircraft]) -> [Aircraft] {
+    /// The flights under a flight number on a date ("2026-10-21"). Each search uses units of the schedule allowance.
+    func searchFlights(number: String, date: String) async throws -> FlightSearchResponse {
+        guard let configuration else { throw StoreError.notConfigured }
+        return try await client.searchFlights(number: number, date: date, configuration: configuration)
+    }
+
+    /// Airports for a code, a city or a name. Free.
+    func searchAirports(_ query: String) async throws -> [Place] {
+        guard let configuration else { throw StoreError.notConfigured }
+        return try await client.searchAirports(query, configuration: configuration)
+    }
+
+    /// One entry per id. A list with a repeated id would confuse the list view.
+    private static func unique<Item: Identifiable>(_ items: [Item]) -> [Item] where Item.ID == String {
         var seen = Set<String>()
-        return aircraft.filter { seen.insert($0.id).inserted }
+        return items.filter { seen.insert($0.id).inserted }
+    }
+
+    /// The wait the server asked for between board refreshes, kept within sensible limits.
+    private static func boardInterval(_ serverSeconds: Int?) -> Duration {
+        .seconds(min(boardIntervalRange.upperBound,
+                     max(boardIntervalRange.lowerBound, Double(serverSeconds ?? Int(defaultBoardInterval)))))
     }
 
     /// The wait the server asked for, kept within sensible limits.
@@ -256,7 +296,7 @@ final class FlightStore {
         return (configuration, try await location.current())
     }
 
-    private func problem(for error: Error) -> FeedProblem {
+    func problem(for error: Error) -> FeedProblem {
         switch error {
         case StoreError.notConfigured: .notConfigured
         case StoreError.locationOff, LocationError.denied: .locationOff
@@ -278,7 +318,7 @@ final class FlightStore {
             configuration = connection
             connectionTest = .idle
             nearby.problem = nil
-            ground.problem = nil
+            board.problem = nil
             return true
         } catch {
             settingsError = error.localizedDescription

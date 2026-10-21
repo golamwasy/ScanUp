@@ -79,9 +79,17 @@ struct NearbyRequest: Encodable {
     let radiusM: Int
 }
 
-struct AirportRequest: Encodable {
-    let latitude: Double
-    let longitude: Double
+/// An airport chosen in the search (`code`), or the phone's position for the nearest airport.
+struct BoardRequest: Encodable {
+    let code: String?
+    let latitude: Double?
+    let longitude: Double?
+}
+
+struct FlightSearchRequest: Encodable {
+    let number: String
+    /// The local date of departure, "2026-10-21".
+    let date: String
 }
 
 // A Cloudflare login page or redirect must never receive the app's bearer token.
@@ -109,10 +117,14 @@ final class BackendClient {
         session = URLSession(configuration: configuration, delegate: NoRedirectDelegate(), delegateQueue: nil)
     }
 
-    static func makeRequest(configuration: BackendConfiguration, path: String,
+    static func makeRequest(configuration: BackendConfiguration, path: String, query: [URLQueryItem] = [],
                             body: (any Encodable)? = nil) throws -> URLRequest {
-        var request = URLRequest(url: configuration.baseURL.appendingPathComponent(path),
-                                 cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
+        var url = configuration.baseURL.appendingPathComponent(path)
+        if !query.isEmpty, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            components.queryItems = query
+            url = components.url ?? url
+        }
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
         request.setValue("Bearer \(configuration.token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
@@ -210,10 +222,22 @@ final class BackendClient {
         return try await post("v1/nearby", body: body, as: NearbyResponse.self, configuration: configuration)
     }
 
-    func airport(latitude: Double, longitude: Double,
-                 configuration: BackendConfiguration) async throws -> AirportResponse {
-        let body = AirportRequest(latitude: latitude, longitude: longitude)
-        return try await post("v1/airport", body: body, as: AirportResponse.self, configuration: configuration)
+    /// Departures and arrivals of an airport, from 12 hours ago to 12 hours ahead.
+    func board(_ request: BoardRequest, configuration: BackendConfiguration) async throws -> BoardResponse {
+        try await post("v1/board", body: request, as: BoardResponse.self, configuration: configuration)
+    }
+
+    /// The flights under a flight number on a date. Each search uses units of the schedule allowance.
+    func searchFlights(number: String, date: String, configuration: BackendConfiguration) async throws -> FlightSearchResponse {
+        try await post("v1/flights/search", body: FlightSearchRequest(number: number, date: date),
+                       as: FlightSearchResponse.self, configuration: configuration)
+    }
+
+    /// Airports for a code, a city or a name. Free: the server searches its own list.
+    func searchAirports(_ query: String, configuration: BackendConfiguration) async throws -> [Place] {
+        let request = try Self.makeRequest(configuration: configuration, path: "v1/airports/search",
+                                           query: [URLQueryItem(name: "q", value: query)])
+        return try Self.decode(AirportSearchResponse.self, from: try await perform(request)).airports
     }
 
     /// What is left of each data source's allowance.

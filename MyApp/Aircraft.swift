@@ -29,20 +29,6 @@ struct NearbyResponse: Decodable {
     let refreshAfterS: Int?
 }
 
-struct AirportInfo: Decodable, Equatable {
-    let name: String
-    let iata: String?
-    let icao: String
-    let distanceM: Int
-}
-
-struct AirportResponse: Decodable {
-    let airport: AirportInfo?
-    let source: String?
-    let refreshAfterS: Int?
-    let aircraft: [Aircraft]
-}
-
 enum VerticalTrend {
     case climbing, descending, level
 

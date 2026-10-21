@@ -72,7 +72,17 @@ check(LocationFailure.reaction(to: URLError(.timedOut)) == .fail, "other errors 
 let usageJSON = #"{"adsb_lol":{"used":1,"daily_budget":500,"remaining":499,"counted_since":"2026-10-20T14:06:18.105730Z"},"opensky":{"enabled":true,"credits_remaining":1171,"checked_at":"2026-10-20T14:06:18.893864Z"}}"#
 let usageOffJSON = #"{"adsb_lol":{"used":420,"daily_budget":500,"remaining":80,"counted_since":"2026-10-20T14:06:18Z","next_free_at":"2026-10-21T14:07:00.5Z"},"opensky":{"enabled":false}}"#
 let nearbyJSON = #"{"updated_at":"2026-10-20T14:06:18.1Z","refresh_after_s":30,"source":"adsb.lol","aircraft":[{"id":"4601fb","callsign":"FIN1L","airline":"Finnair","distance_m":850,"bearing_deg":44,"elevation_deg":54,"on_ground":false}]}"#
-let airportJSON = #"{"updated_at":"2026-10-20T14:06:18.1Z","refresh_after_s":60,"aircraft":[]}"#
+let usageSchedulesJSON = #"{"adsb_lol":{"used":1,"daily_budget":500,"remaining":499,"counted_since":"2026-10-20T14:06:18Z"},"opensky":{"enabled":false},"flight_schedules":{"enabled":true,"remaining":60,"monthly_limit":400,"resets_at":"2026-11-21T15:34:08.471599Z","used_last_30_days":340}}"#
+
+/// A flight between Helsinki and Tallinn, scheduled at the given UTC time (the airport clock is UTC+3).
+func flightJSON(number: String = "AY 1013", status: String = "expected", utc: String, local: String, revised: String? = nil,
+                gate: String? = "11", extra: String = "") -> String {
+    let place = #"{"name":"Helsinki Vantaa Airport","city":"Helsinki (Vantaa)","iata":"HEL","icao":"EFHK","country":"FI"}"#
+    let other = #"{"name":"Tallinn","iata":"TLL","icao":"EETN","country":"EE"}"#
+    let revisedPart = revised.map { #","revised":{"utc":"\#($0)","local":"\#($0)"}"# } ?? ""
+    let gatePart = gate.map { #","gate":"\#($0)""# } ?? ""
+    return #"{"number":"\#(number)","status":"\#(status)","airline":"Finnair","airline_iata":"AY","departure":{"airport":\#(place),"scheduled":{"utc":"\#(utc)","local":"\#(local)"}\#(revisedPart)\#(gatePart)},"arrival":{"airport":\#(other),"scheduled":{"utc":"2026-10-21T08:00:00Z","local":"2026-10-21T11:00:00+03:00"}}\#(extra)}"#
+}
 
 MainActor.assumeIsolated {
     do {
@@ -89,8 +99,10 @@ MainActor.assumeIsolated {
         let nearby = try BackendClient.decode(NearbyResponse.self, from: Data(nearbyJSON.utf8))
         check(nearby.refreshAfterS == 30 && nearby.aircraft.count == 1 && nearby.aircraft[0].airline == "Finnair", "nearby answer")
         check(nearby.aircraft[0].title == "Finnair" && nearby.aircraft[0].lookDirection == "NE · 54° up", "card texts")
-        let airport = try BackendClient.decode(AirportResponse.self, from: Data(airportJSON.utf8))
-        check(airport.airport == nil && airport.source == nil && airport.aircraft.isEmpty && airport.refreshAfterS == 60, "no airport nearby")
+        check(usage.flightSchedules == nil, "an older server sends no schedule allowance")
+        let withSchedules = try BackendClient.decode(Usage.self, from: Data(usageSchedulesJSON.utf8))
+        check(withSchedules.flightSchedules?.remaining == 60 && withSchedules.flightSchedules?.monthlyLimit == 400, "schedule allowance numbers")
+        check(withSchedules.flightSchedules?.isRunningLow == true && withSchedules.flightSchedules?.resetsAt != nil, "340 of 400 is low")
     } catch {
         check(false, "decoding threw \(error)")
     }
@@ -100,6 +112,58 @@ MainActor.assumeIsolated {
     } catch {
         check(true, "an unexpected answer is rejected")
     }
+}
+
+MainActor.assumeIsolated {
+    do {
+        // Boards: times come twice, UTC for order and the airport's own clock for showing.
+        let boardJSON = #"{"airport":{"name":"Helsinki Vantaa Airport","city":"Helsinki (Vantaa)","iata":"HEL","icao":"EFHK","country":"FI","is_nearest":true,"distance_m":129},"updated_at":"2026-10-21T19:10:58.187931Z","refresh_after_s":600,"departures":[\#(flightJSON(utc: "2026-10-21T07:00:00Z", local: "2026-10-21T10:00:00+03:00", revised: "2026-10-21T07:11:00Z"))],"arrivals":[]}"#
+        let board = try BackendClient.decode(BoardResponse.self, from: Data(boardJSON.utf8))
+        check(board.airport?.isNearest == true && board.airport?.distanceM == 129 && board.airport?.icao == "EFHK", "board airport")
+        check(board.refreshAfterS == 600 && board.notice == nil && board.arrivals.isEmpty, "board envelope")
+        let flight = board.departures[0]
+        check(flight.departure.scheduled?.clock == "10:00" && flight.departure.scheduled?.day == "2026-10-21", "the airport clock, not the phone's")
+        check(flight.departure.scheduled?.offsetSeconds == 10_800, "offset read from the local time")
+        check(flight.departure.delayMinutes == 11 && flight.departure.isLate, "11 minutes late is late")
+        check(flight.arrival.delayMinutes == nil && !flight.arrival.isLate, "no estimate, no delay")
+        check(flight.flightStatus == .expected && flight.departure.gate == "11" && flight.arrival.gate == nil, "status and gate")
+        check(flight.initials == "AY" && flight.departure.airport.code == "HEL" && flight.arrival.airport.code == "TLL", "badge and codes")
+        check(flight.arrival.airport.shortName == "Tallinn" && flight.departure.airport.shortName == "Helsinki", "short names drop the district")
+        check(flight.end(on: .departures).airport.iata == "HEL" && flight.otherEnd(on: .departures).airport.iata == "TLL", "ends by direction")
+        check(flight.end(on: .arrivals).airport.iata == "TLL" && flight.otherEnd(on: .arrivals).airport.iata == "HEL", "ends for arrivals")
+
+        // An unknown status is neutral, and a missing airport name field does not matter.
+        let odd = try BackendClient.decode(ScheduledFlight.self, from: Data(flightJSON(status: "teleported", utc: "2026-10-21T07:00:00Z", local: "2026-10-21T10:00:00+03:00", gate: nil).utf8))
+        check(odd.flightStatus == .unknown && odd.departure.gate == nil, "unknown status and no gate")
+        check(try BackendClient.decode(ScheduledFlight.self, from: Data(flightJSON(status: "check_in", utc: "2026-10-21T07:00:00Z", local: "2026-10-21T10:00:00+03:00").utf8)).flightStatus == .checkIn, "snake case status")
+        let early = try BackendClient.decode(ScheduledFlight.self, from: Data(flightJSON(utc: "2026-10-21T07:00:00Z", local: "2026-10-21T10:00:00+03:00", revised: "2026-10-21T06:50:00Z").utf8))
+        check(early.departure.delayMinutes == -10 && !early.departure.isLate, "ten minutes early is not late")
+
+        // Rows: a heading when the day changes, and "now" before the first flight still to come.
+        let a1 = try BackendClient.decode(ScheduledFlight.self, from: Data(flightJSON(number: "A1", utc: "2026-10-21T06:00:00Z", local: "2026-10-21T09:00:00+03:00").utf8))
+        let a2 = try BackendClient.decode(ScheduledFlight.self, from: Data(flightJSON(number: "A2", utc: "2026-10-21T20:00:00Z", local: "2026-10-21T23:00:00+03:00").utf8))
+        let a3 = try BackendClient.decode(ScheduledFlight.self, from: Data(flightJSON(number: "A3", utc: "2026-10-21T22:00:00Z", local: "2026-10-22T01:00:00+03:00").utf8))
+        let noon = ISO8601DateFormatter().date(from: "2026-10-21T12:00:00Z")!
+        let rows = BoardRow.rows(for: [a1, a2, a3], direction: .departures, now: noon)
+        check(rows.map(\.id) == ["day-2026-10-21", "A1|2026-10-21T09:00:00+03:00|EETN", "now", "A2|2026-10-21T23:00:00+03:00|EETN",
+                                  "day-2026-10-22", "A3|2026-10-22T01:00:00+03:00|EETN"], "rows: \(rows.map(\.id))")
+        let late = ISO8601DateFormatter().date(from: "2026-10-22T12:00:00Z")!
+        check(BoardRow.rows(for: [a1, a2], direction: .departures, now: late).last?.id == "now", "now at the end when all are past")
+        check(BoardRow.rows(for: [], direction: .departures, now: noon).map(\.id) == ["now"], "an empty board is only the now line")
+
+        let searchJSON = #"{"number":"AY1406","date":"2026-10-21","updated_at":"2026-10-21T19:10:58Z","flights":[\#(flightJSON(utc: "2026-10-21T07:00:00Z", local: "2026-10-21T10:00:00+03:00"))]}"#
+        let search = try BackendClient.decode(FlightSearchResponse.self, from: Data(searchJSON.utf8))
+        check(search.number == "AY1406" && search.flights.count == 1 && search.notice == nil, "search answer")
+        let airports = try BackendClient.decode(AirportSearchResponse.self, from: Data(#"{"airports":[{"name":"London Heathrow Airport","city":"London","iata":"LHR","icao":"EGLL","country":"GB"},{"name":"Tiny Strip","icao":"XX12"}]}"#.utf8))
+        check(airports.airports.count == 2 && airports.airports[0].code == "LHR" && airports.airports[1].code == "XX12", "airport search answer")
+        check(airports.airports[1].shortName == "Tiny Strip" && airports.airports[0].id == "EGLL", "place names and ids")
+    } catch {
+        check(false, "decoding threw \(error)")
+    }
+    check(FlightNumber.normalised("ay 1406") == "AY1406" && FlightNumber.normalised("AY-1406") == "AY1406", "flight numbers are tidied")
+    check(FlightNumber.normalised("U2 1234") == "U21234" && FlightNumber.normalised("BA2490A") == "BA2490A" && FlightNumber.normalised("FIN12") == "FIN12", "other kinds of flight numbers")
+    check(FlightNumber.normalised("12345") == nil && FlightNumber.normalised("AY") == nil && FlightNumber.normalised("AY12345") == nil, "not flight numbers")
+    check(FlightNumber.normalised("AY1406; DROP") == nil && FlightNumber.normalised("") == nil, "junk is refused")
 }
 
 MainActor.assumeIsolated {
