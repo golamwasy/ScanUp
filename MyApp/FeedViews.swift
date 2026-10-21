@@ -210,7 +210,7 @@ struct ProblemCard: View {
         switch problem {
         case .notConfigured:
             MessageCard(systemImage: "server.rack", title: String(localized: "Connect to your server"),
-                        message: String(localized: "Add the server address and access token in Settings to see aircraft."),
+                        message: String(localized: "Add the server address and access token in Settings to get started."),
                         actionTitle: String(localized: "Open Settings"), action: openSettingsTab)
         case .locationOff:
             MessageCard(systemImage: "location.slash", title: String(localized: "Location is off"),

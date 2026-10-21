@@ -61,7 +61,7 @@ struct SettingsView: View {
         } header: {
             Text("Search area")
         } footer: {
-            Text("The Overhead tab lists aircraft within this distance of you. The Airport tab always looks around the nearest airport.")
+            Text("The Overhead tab lists aircraft within this distance of you. The Airport tab shows flights of the nearest airport.")
         }
     }
 

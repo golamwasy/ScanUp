@@ -113,26 +113,34 @@ struct FlightsView: View {
     }
 
     private var dayPicker: some View {
-        HStack(spacing: 8) {
-            ForEach([-1, 0, 1], id: \.self) { offset in
-                let day = Calendar.current.date(byAdding: .day, value: offset, to: Calendar.current.startOfDay(for: Date())) ?? Date()
-                let isChosen = Calendar.current.isDate(model.date, inSameDayAs: day)
-                Button {
-                    withAnimation(.snappy) { model.date = day }
-                } label: {
-                    Text(offset == -1 ? String(localized: "Yesterday") : offset == 0 ? String(localized: "Today") : String(localized: "Tomorrow"))
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(isChosen ? Theme.accent : Theme.card, in: Capsule())
-                        .foregroundStyle(isChosen ? Color.white : Color.primary)
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                ForEach([-1, 0, 1], id: \.self) { offset in
+                    let day = Calendar.current.date(byAdding: .day, value: offset, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+                    let isChosen = Calendar.current.isDate(model.date, inSameDayAs: day)
+                    Button {
+                        withAnimation(.snappy) { model.date = day }
+                    } label: {
+                        Text(offset == -1 ? String(localized: "Yesterday") : offset == 0 ? String(localized: "Today") : String(localized: "Tomorrow"))
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(isChosen ? Theme.accent : Theme.card, in: Capsule())
+                            .foregroundStyle(isChosen ? Color.white : Color.primary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
-            Spacer(minLength: 0)
-            DatePicker("Day", selection: $model.date, in: FlightSearchModel.dayRange, displayedComponents: .date)
-                .labelsHidden()
-                .datePickerStyle(.compact)
+            HStack {
+                Text("Another day").font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+                DatePicker("Day", selection: $model.date, in: FlightSearchModel.dayRange, displayedComponents: .date)
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+            }
+            .padding(.horizontal, 4)
         }
         .padding(.top, 8)
     }
