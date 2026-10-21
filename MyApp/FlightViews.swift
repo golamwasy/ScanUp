@@ -386,6 +386,9 @@ struct ScheduleTimes: View {
 
     private func state(_ end: FlightEnd, isDeparture: Bool) -> String {
         if end.actual != nil { return isDeparture ? String(localized: "Took off") : String(localized: "Landed") }
+        // The provider often has no runway time for a flight that is already in the air; it has left all the same.
+        if isDeparture, [.departed, .enRoute, .approaching, .arrived].contains(schedule.flightStatus) { return String(localized: "Took off") }
+        if !isDeparture, schedule.flightStatus == .arrived { return String(localized: "Landed") }
         return end.expected != nil ? String(localized: "Expected") : String(localized: "Scheduled")
     }
 
