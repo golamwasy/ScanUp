@@ -35,13 +35,18 @@ How much of each data source's request allowance is left. The app shows it in Se
 {
   "adsb_lol": { "used": 13, "daily_budget": 500, "remaining": 487, "counted_since": "2026-10-20T11:00:00Z", "next_free_at": "2026-10-21T11:02:00Z" },
   "opensky": { "enabled": true, "credits_remaining": 3991, "checked_at": "2026-10-20T11:20:00Z" },
-  "flight_schedules": { "enabled": true, "remaining": 392, "monthly_limit": 400, "resets_at": "2026-11-21T07:34:00Z", "used_last_30_days": 8 }
+  "flight_schedules": { "enabled": true, "remaining": 392, "monthly_limit": 400, "resets_at": "2026-11-21T07:34:00Z", "used_last_30_days": 8 },
+  "board_providers": [
+    { "name": "AirLabs", "enabled": true, "unit": "queries", "used_last_30_days": 11, "budget": 1000, "remaining": 989 },
+    { "name": "FlightAware", "enabled": true, "unit": "usd", "used_last_30_days": 0.2, "budget": 4.5, "remaining": 4.3 }
+  ]
 }
 ```
 
 - `adsb_lol`: `used` is the number of requests in the last 24 hours. ADSB.lol allows about 500 requests in any 24 hours. The server counts its own requests and saves their times in a file on a Docker volume, so the count survives restarts and deploys. It counts since `counted_since` (the first time the file was written, or the start of the server if saving is off), so it can be lower than ADSB.lol's own count when other devices on the same network address also use ADSB.lol. `next_free_at` is when the oldest counted request turns 24 hours old and stops counting; the count goes down by one then. There is no reset at midnight, because ADSB.lol's limit is a rolling 24 hours.
 - `opensky`: `enabled` is false when no OpenSky credentials are set up, and then the other fields are left out. OpenSky only reports its remaining credits in the reply to a query, so a number older than 5 minutes is renewed with one tiny query (one credit). `credits_remaining` and `checked_at` are left out when it could not be read.
 - `flight_schedules`: the allowance of the flight schedule provider (airport boards and flight search). `remaining` is what the provider itself last said is left this month, and `resets_at` when its month starts again; before the provider's first answer, `remaining` is an estimate from the server's own count and `resets_at` is left out. `enabled` is false when no key is set up. The server never spends the last 20 units.
+- `board_providers` (optional): the other sources of airport boards, asked in this order when the provider above cannot answer. `unit` says what the numbers count: `queries` or `usd`. The app shows one row for each and treats the field as absent on servers that do not have it.
 
 ## `POST /v1/nearby`
 
@@ -152,7 +157,7 @@ Departures and arrivals of an airport from 12 hours ago to about 11 hours from n
 }
 ```
 
-Lists are in order of the scheduled time at this airport. `updated_at` is when the oldest half of the data was fetched. `notice` says why the lists are old, short or empty: `not_configured` (no provider key), `allowance_used` (the month's units are nearly used up), `denied` (the key was refused), `unavailable` (the provider did not answer), `no_airport_nearby` (then `airport` is left out). When the provider cannot be asked, the last good lists (up to 6 hours old) are sent with the notice. An unknown code gets 404.
+Lists are in order of the scheduled time at this airport. `updated_at` is when the oldest half of the data was fetched. `notice` says why the lists are old, short or empty: `not_configured` (no provider key), `allowance_used` (the month's units are nearly used up), `denied` (the key was refused), `unavailable` (the provider did not answer), `no_airport_nearby` (then `airport` is left out). `sources` (optional) lists who the flights came from (for example `["AeroDataBox", "AirLabs"]`); the app names them in the credit under the board and falls back to AeroDataBox when the field is missing. When the provider cannot be asked, the last good lists (up to 6 hours old) are sent with the notice. An unknown code gets 404.
 
 Cost: one board is two provider calls (2 units each); the coming half is reused for 20 minutes and the past half for 60 minutes, so opening the same board again is free, and a board left open costs about 8 units an hour. After a failed provider call no new call is made for 30 seconds (5 minutes when the key is refused, or as long as the provider asks after a rate limit).
 
@@ -171,7 +176,7 @@ Cost: one board is two provider calls (2 units each); the coming half is reused 
 
 Each end: `airport` (`name`, and when known `city`, `iata`, `icao`, `country`), times `scheduled`, `revised` (the airline's latest estimate), `predicted` (the provider's own estimate) and `actual` (runway time), each `{"utc": "2026-10-21T19:20:00Z", "local": "2026-10-21T22:20:00+03:00"}` where `local` is that airport's own clock, and `terminal`, `gate`, `check_in`, `baggage_belt`. Everything except `airport` may be missing.
 
-Data: flight schedules by AeroDataBox (attribution required by its terms). The free plan allows personal use only.
+Data: flight schedules by AeroDataBox (attribution required by its terms), with AirLabs and FlightAware as backups for boards. The free and personal plans allow personal use only.
 
 ## `GET /health`
 

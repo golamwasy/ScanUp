@@ -5,7 +5,7 @@ Notes for later. ScanUp today is a personal app: one user, a home server behind 
 ## What could block you, in order
 
 ### 1. The data source (decide this first)
-- **Flight schedules (airport boards, times of a tracked flight) come from AeroDataBox on the free RapidAPI plan: 400 units a month, personal use only (commercial use is not allowed on that plan), and the app must credit AeroDataBox (it does, in Settings and under every board). A public release needs a paid plan or another provider.**
+- **Flight schedules (airport boards, times of a tracked flight) come from AeroDataBox on the free RapidAPI plan: 400 units a month, personal use only (commercial use is not allowed on that plan), and the app must credit AeroDataBox (it does, in Settings and under every board). A public release needs a paid plan or another provider.** The board backups (AirLabs free plan, FlightAware personal tier) are personal-use plans too.
 - ADSB.lol and OpenSky are free community or academic services. OpenSky is for non-commercial use. ADSB.lol allows about 500 requests in any 24 hours per address, which a few dozen users would use up. Read each service's current terms before publishing.
 - Realistic choices: a paid licence (FlightAware, Flightradar24 or ADS-B Exchange sell APIs; the cost grows with users), or your own ADS-B receivers (cheap, but they cover only a limited area).
 - Shared caching helps a lot: answer many users from one result per area (a few kilometres wide) for 5 to 10 seconds, so upstream requests do not grow with the number of users.

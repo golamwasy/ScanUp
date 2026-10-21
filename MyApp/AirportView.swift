@@ -37,7 +37,7 @@ struct AirportView: View {
                     }
                     content
                     if board.hasLoaded {
-                        Text("Times are local to the airport. Flight schedules by AeroDataBox.")
+                        Text("Times are local to the airport. \(ScheduleCredit.text(for: board.sources))")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -70,7 +70,7 @@ struct AirportView: View {
         }
         .sheet(item: $openFlight) { flight in
             NavigationStack {
-                FlightDetailView(flight: flight)
+                FlightDetailView(flight: flight, sources: store.board.sources)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Done") { openFlight = nil }

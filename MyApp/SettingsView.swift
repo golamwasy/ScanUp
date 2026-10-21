@@ -169,6 +169,9 @@ struct SettingsView: View {
                 if let schedules = usage.flightSchedules {
                     schedulesRow(schedules)
                 }
+                ForEach(usage.boardProviders ?? []) { provider in
+                    boardProviderRow(provider)
+                }
             } else if store.isLoadingUsage {
                 HStack {
                     Text("Checking…").foregroundStyle(.secondary)
@@ -195,7 +198,7 @@ struct SettingsView: View {
             }
         } footer: {
             if let since = store.usage?.adsbLol.countedSince {
-                Text("ADSB.lol is counted by your server from \(since.formatted(date: .omitted, time: .shortened)). Requests before that, or from other devices on your network address, are not included. OpenSky’s number comes from OpenSky itself.")
+                Text("ADSB.lol is counted by your server from \(since.formatted(date: .omitted, time: .shortened)). Requests before that, or from other devices on your network address, are not included. OpenSky’s number comes from OpenSky itself. The board backups are counted by your server.")
             } else {
                 Text("ADSB.lol is counted by your server. OpenSky’s number comes from OpenSky itself.")
             }
@@ -263,6 +266,34 @@ struct SettingsView: View {
         }
         .padding(.vertical, 2)
         .animation(.smooth, value: schedules)
+    }
+
+    private func boardProviderRow(_ provider: Usage.BoardProvider) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(provider.name)
+                Text("board backup").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if !provider.enabled {
+                    Text("Not set up").foregroundStyle(.secondary)
+                } else {
+                    Text(provider.remainingText)
+                        .font(.body.weight(.semibold))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .foregroundStyle(provider.isRunningLow ? Theme.warning : .primary)
+                }
+            }
+            if provider.enabled {
+                ProgressView(value: provider.fractionUsed)
+                    .tint(provider.isRunningLow ? Theme.warning : Theme.accent)
+                Text("Asked only when AeroDataBox cannot answer.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+        .animation(.smooth, value: provider)
     }
 
     private func openSkyRow(_ openSky: Usage.OpenSky) -> some View {
@@ -359,7 +390,7 @@ struct SettingsView: View {
         } header: {
             Text("About")
         } footer: {
-            Text("Aircraft positions come from OpenSky Network and ADSB.lol. Airlines, routes and aircraft types come from adsbdb. Flight schedules (airport boards and flight search) by AeroDataBox.")
+            Text("Aircraft positions come from OpenSky Network and ADSB.lol. Airlines, routes and aircraft types come from adsbdb. Flight schedules (airport boards and flight search) by AeroDataBox, with AirLabs and FlightAware as backups when it cannot answer.")
         }
     }
 }

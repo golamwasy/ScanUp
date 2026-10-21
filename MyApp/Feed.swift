@@ -55,18 +55,24 @@ struct BoardFeed {
     var failures = 0
     /// Why the server's lists are old, short or empty.
     var notice: ScheduleNotice?
+    private var comingSources: [String] = []
+    private var pastSources: [String] = []
+    /// Who the flights came from (the credits to show), over the coming and the earlier flights.
+    var sources: [String] { comingSources + pastSources.filter { !comingSources.contains($0) } }
     /// Whether the 12 hours before now have been fetched, and what became of asking for them.
     private(set) var pastLoaded = false
     var isLoadingPast = false
     var pastProblem: String?
 
-    mutating func setComing(departures: [ScheduledFlight], arrivals: [ScheduledFlight]) {
+    mutating func setComing(departures: [ScheduledFlight], arrivals: [ScheduledFlight], sources: [String] = []) {
         coming = (departures, arrivals)
+        comingSources = sources
         merge()
     }
 
-    mutating func setPast(departures: [ScheduledFlight], arrivals: [ScheduledFlight]) {
+    mutating func setPast(departures: [ScheduledFlight], arrivals: [ScheduledFlight], sources: [String] = []) {
         past = (departures, arrivals)
+        pastSources = sources
         pastLoaded = true
         pastProblem = nil
         merge()

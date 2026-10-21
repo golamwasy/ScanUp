@@ -225,7 +225,7 @@ final class FlightStore {
             // Another airport or position was picked while this was on its way, so it is the wrong board.
             guard requestedAirport == chosenAirport, requestedPlace == testLocation else { return .seconds(1) }
             board.airport = response.airport
-            board.setComing(departures: Self.unique(response.departures), arrivals: Self.unique(response.arrivals))
+            board.setComing(departures: Self.unique(response.departures), arrivals: Self.unique(response.arrivals), sources: response.sources)
             board.dataTime = response.updatedAt
             board.updatedAt = Date()
             board.notice = response.notice.flatMap(ScheduleNotice.init(rawValue:))
@@ -267,7 +267,7 @@ final class FlightStore {
             }
             let response = try await client.board(request, configuration: configuration)
             guard requestedAirport == chosenAirport, requestedPlace == testLocation else { return }
-            board.setPast(departures: Self.unique(response.departures), arrivals: Self.unique(response.arrivals))
+            board.setPast(departures: Self.unique(response.departures), arrivals: Self.unique(response.arrivals), sources: response.sources)
         } catch is CancellationError {
         } catch {
             guard requestedAirport == chosenAirport, requestedPlace == testLocation else { return }

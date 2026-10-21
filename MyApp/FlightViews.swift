@@ -194,6 +194,8 @@ struct NowMarker: View {
 /// Everything known about a flight: both airports with their times and details, and the aircraft.
 struct FlightDetailView: View {
     let flight: ScheduledFlight
+    /// Who the flights of the board came from, for the credit under the card.
+    var sources: [String] = []
     @State private var aircraftInfo: AircraftDetails?
 
     var body: some View {
@@ -216,7 +218,7 @@ struct FlightDetailView: View {
                 if !aircraftFacts.isEmpty {
                     factsCard(title: String(localized: "Aircraft"), facts: aircraftFacts)
                 }
-                Text("Times are local to each airport. Flight schedules by AeroDataBox.")
+                Text("Times are local to each airport. \(ScheduleCredit.text(for: sources))")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

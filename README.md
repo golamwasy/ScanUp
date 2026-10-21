@@ -27,7 +27,8 @@ The app does not talk to any aircraft or schedule service itself. It talks to **
 ```
 iPhone app  ──HTTPS + token──▶  your backend  ──▶  ADSB.lol, OpenSky (aircraft)
                                                 ├─▶  adsbdb (airline, route, type)
-                                                └─▶  AeroDataBox (schedules, aircraft age)
+                                                ├─▶  AeroDataBox (schedules, aircraft age)
+                                                └─▶  AirLabs, FlightAware (boards, when AeroDataBox cannot answer)
 ```
 
 - **Position.** Read only while the app is open and sent only to your backend. Nothing runs in the background, and the app keeps no account or history.
@@ -79,6 +80,7 @@ All under `MyApp/`.
 - Aircraft positions: [ADSB.lol](https://adsb.lol) (open data) and [OpenSky Network](https://opensky-network.org) as a fallback.
 - Airline, route and aircraft type: [adsbdb](https://www.adsbdb.com).
 - Flight schedules and aircraft age: [AeroDataBox](https://aerodatabox.com), through RapidAPI. The free plan is for personal use only and requires crediting AeroDataBox, which the app does in Settings and under the boards and search results.
+- Airport boards when AeroDataBox cannot answer (its monthly units are used up, or it is down): [AirLabs](https://airlabs.co) and [FlightAware AeroAPI](https://www.flightaware.com/aeroapi/), on their personal plans. The app credits the sources that supplied the flights on screen.
 - Airports: [OurAirports](https://ourairports.com/data/) (public domain), held by the backend.
 
 These services are free or community run and can change or stop. Do not rely on this app for anything safety-critical: positions and times can be late, wrong or missing.

@@ -74,6 +74,8 @@ let usageOffJSON = #"{"adsb_lol":{"used":420,"daily_budget":500,"remaining":80,"
 let nearbyJSON = #"{"updated_at":"2026-10-20T14:06:18.1Z","refresh_after_s":30,"source":"adsb.lol","aircraft":[{"id":"4601fb","callsign":"FIN1L","airline":"Finnair","distance_m":850,"bearing_deg":44,"elevation_deg":54,"on_ground":false}]}"#
 let usageSchedulesJSON = #"{"adsb_lol":{"used":1,"daily_budget":500,"remaining":499,"counted_since":"2026-10-20T14:06:18Z"},"opensky":{"enabled":false},"flight_schedules":{"enabled":true,"remaining":60,"monthly_limit":400,"resets_at":"2026-11-21T15:34:08.471599Z","used_last_30_days":340}}"#
 
+let usageProvidersJSON = #"{"adsb_lol":{"used":1,"daily_budget":500,"remaining":499,"counted_since":"2026-10-20T14:06:18Z"},"opensky":{"enabled":false},"board_providers":[{"name":"AirLabs","enabled":true,"unit":"queries","used_last_30_days":11.0,"budget":1000.0,"remaining":989.0},{"name":"FlightAware","enabled":true,"unit":"usd","used_last_30_days":4.0,"budget":4.5,"remaining":0.5},{"name":"Other","enabled":false,"unit":"queries","used_last_30_days":0,"budget":0,"remaining":0}]}"#
+
 /// A flight between Helsinki and Tallinn, scheduled at the given UTC time (the airport clock is UTC+3).
 func flightJSON(number: String = "AY 1013", status: String = "expected", utc: String, local: String, revised: String? = nil,
                 gate: String? = "11", extra: String = "") -> String {
@@ -103,6 +105,15 @@ MainActor.assumeIsolated {
         let withSchedules = try BackendClient.decode(Usage.self, from: Data(usageSchedulesJSON.utf8))
         check(withSchedules.flightSchedules?.remaining == 60 && withSchedules.flightSchedules?.monthlyLimit == 400, "schedule allowance numbers")
         check(withSchedules.flightSchedules?.isRunningLow == true && withSchedules.flightSchedules?.resetsAt != nil, "340 of 400 is low")
+        check(usage.boardProviders == nil, "an older server sends no board backups")
+        let withProviders = try BackendClient.decode(Usage.self, from: Data(usageProvidersJSON.utf8))
+        let providers = withProviders.boardProviders ?? []
+        check(providers.map(\.name) == ["AirLabs", "FlightAware", "Other"], "board backups in the server's order")
+        check(providers[0].remaining == 989 && !providers[0].isMoney && !providers[0].isRunningLow && close(providers[0].fractionUsed, 0.011), "AirLabs counts queries")
+        check(providers[1].isMoney && providers[1].isRunningLow && close(providers[1].fractionUsed, 0.8889, 0.001), "FlightAware counts dollars and 4 of 4.50 is low")
+        check(providers[0].remainingText.contains("989"), "queries left text")
+        check(providers[1].remainingText.contains("0.50") || providers[1].remainingText.contains("0,50"), "dollars left text")
+        check(providers[2].fractionUsed == 0 && !providers[2].enabled, "a source without a budget has nothing used")
     } catch {
         check(false, "decoding threw \(error)")
     }
@@ -121,6 +132,21 @@ MainActor.assumeIsolated {
         let board = try BackendClient.decode(BoardResponse.self, from: Data(boardJSON.utf8))
         check(board.airport?.isNearest == true && board.airport?.distanceM == 129 && board.airport?.icao == "EFHK", "board airport")
         check(board.refreshAfterS == 600 && board.notice == nil && board.arrivals.isEmpty, "board envelope")
+        check(board.sources.isEmpty, "an older server names no sources")
+        let named = try BackendClient.decode(BoardResponse.self, from: Data(boardJSON.replacingOccurrences(of: #""departures":"#, with: #""sources":["AeroDataBox","AirLabs"],"departures":"#).utf8))
+        check(named.sources == ["AeroDataBox", "AirLabs"], "the sources of a board")
+        let oddSources = try BackendClient.decode(BoardResponse.self, from: Data(boardJSON.replacingOccurrences(of: #""departures":"#, with: #""sources":[1,2],"departures":"#).utf8))
+        check(oddSources.sources.isEmpty && oddSources.departures.count == 1, "sources that do not read as text do not spoil the board")
+        check(ScheduleCredit.text(for: []) == "Flight schedules by AeroDataBox.", "no source named: AeroDataBox")
+        check(ScheduleCredit.text(for: ["AeroDataBox", "AirLabs"]) == "Flight schedules by AeroDataBox and AirLabs.", "two sources")
+        check(ScheduleCredit.text(for: ["AeroDataBox", "AirLabs", "FlightAware"]).contains("FlightAware"), "three sources")
+        check(ScheduleCredit.text(for: ["", String(repeating: "x", count: 80)]) == "Flight schedules by AeroDataBox.", "empty and absurd names are not shown")
+        var feed = BoardFeed()
+        feed.setComing(departures: [], arrivals: [], sources: ["AirLabs"])
+        feed.setPast(departures: [], arrivals: [], sources: ["AeroDataBox", "AirLabs"])
+        check(feed.sources == ["AirLabs", "AeroDataBox"], "the credits cover the coming and the earlier flights, once each")
+        feed.setComing(departures: [], arrivals: [], sources: ["FlightAware"])
+        check(feed.sources == ["FlightAware", "AeroDataBox", "AirLabs"], "a new answer for the coming flights keeps the credits of the earlier ones")
         let flight = board.departures[0]
         check(flight.departure.scheduled?.clock == "10:00" && flight.departure.scheduled?.day == "2026-10-21", "the airport clock, not the phone's")
         check(flight.departure.scheduled?.offsetSeconds == 10_800, "offset read from the local time")
