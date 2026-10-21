@@ -46,10 +46,12 @@ git log --oneline -1                 # the last commit
 
 ## Match the server to the app
 
-- The **old app** works with the **old and the new server**.
-- The **new app** needs the **new server**.
+The app and the backend go together:
 
-So when you go back to the old app, you do not have to touch the server. When you go back to the old *server*, go back to the old app too. How to switch the server with one button: see the backend repo, `docs/switching-versions.md` (https://github.com/golamwasy/ScanUp-Backend/blob/main/docs/switching-versions.md).
+- The **new app** needs the **new backend** (airport boards, search by flight number, aircraft age).
+- The **old app** (`before-schedules`) needs the **old backend**: the new one no longer has the list of aircraft on the ground that the old Airport tab used.
+
+So go back to the old app only together with the old backend. The backend is a separate project with its own versions and its own switching guide.
 
 ## If your computer is lost or the folder is damaged
 
