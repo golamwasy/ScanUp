@@ -277,6 +277,43 @@ enum BoardRow: Identifiable {
     }
 }
 
+/// Which part of a board to show, so a long board opens at "now" with a few flights and grows as it is scrolled.
+enum BoardPaging {
+    /// Flights shown from "now" on when a board opens, and added by each tap on "Show more".
+    static let firstPage = 15
+    static let step = 30
+
+    /// How much has been added to the first page, before "now" and after it.
+    struct Window: Equatable {
+        var earlier = 0
+        var later = 0
+    }
+
+    /// The part of `flights` (in time order, flights without a time last) to show: the first page from "now", with the
+    /// earlier and later flights that were asked for added. When nothing is still to come, the last flights are shown.
+    static func range(in flights: [ScheduledFlight], direction: BoardDirection, now: Date, window: Window) -> Range<Int> {
+        let count = flights.count
+        guard count > 0 else { return 0..<0 }
+        let firstUnscheduled = flights.firstIndex { $0.end(on: direction).scheduled == nil } ?? count
+        let anchor = flights.firstIndex { ($0.end(on: direction).scheduled?.utc ?? .distantPast) >= now } ?? firstUnscheduled
+        let upcoming = firstUnscheduled - anchor
+        let start = upcoming > 0 ? anchor - window.earlier : anchor - firstPage - window.earlier
+        let end = upcoming > 0 ? anchor + firstPage + window.later : anchor + window.later
+        return max(0, start)..<min(count, max(end, 0))
+    }
+
+    /// Two lists of one board in one: time order, a flight in both once (the first list wins), flights without a time last.
+    static func merged(_ first: [ScheduledFlight], _ second: [ScheduledFlight], direction: BoardDirection) -> [ScheduledFlight] {
+        var seen = Set<String>()
+        let unique = (first + second).filter { seen.insert($0.id).inserted }
+        return unique.enumerated().sorted { left, right in
+            let a = left.element.end(on: direction).scheduled?.utc ?? .distantFuture
+            let b = right.element.end(on: direction).scheduled?.utc ?? .distantFuture
+            return a == b ? left.offset < right.offset : a < b
+        }.map(\.element)
+    }
+}
+
 enum TrackQuery {
     /// "ay 1406" becomes "AY1406"; nil when it cannot be a flight number, callsign or registration. The same rule as
     /// the server, so a typing mistake does not cost a request: letters, digits and hyphens, two to ten of them.

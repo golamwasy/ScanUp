@@ -84,6 +84,8 @@ struct BoardRequest: Encodable {
     let code: String?
     let latitude: Double?
     let longitude: Double?
+    /// "coming" (an hour ago to about 11 hours ahead), "past" (the 12 hours before now) or "all".
+    let part: String
 }
 
 struct TrackRequest: Encodable {
@@ -226,7 +228,7 @@ final class BackendClient {
         return try await post("v1/nearby", body: body, as: NearbyResponse.self, configuration: configuration)
     }
 
-    /// Departures and arrivals of an airport, from 12 hours ago to 12 hours ahead.
+    /// Departures and arrivals of an airport: the coming part (2 schedule units) or the past part (2 units).
     func board(_ request: BoardRequest, configuration: BackendConfiguration) async throws -> BoardResponse {
         try await post("v1/board", body: request, as: BoardResponse.self, configuration: configuration)
     }

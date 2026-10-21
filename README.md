@@ -4,7 +4,7 @@ An iPhone app that shows what is flying around you. Open it and it asks your own
 
 - **Overhead:** aircraft within a distance you choose (3 km by default, up to 10 km). A radar that turns with the phone's compass shows where each one is. Tap an aircraft for its route, type, registration, altitude, speed and where in the sky to look.
 - **Search:** type a flight number (AY1406), a callsign (FIN5DA) or a registration (OH-LXA). If that plane is in the air and heard right now, you see where it is, how high and fast, its route, and when it departed and is due to arrive. If not, the app says it is not on the radar.
-- **Airport:** a board of departures and arrivals, from 12 hours ago to about 11 hours ahead, for the nearest airport or any airport you search for. It opens at "now", with the airport's local times, delays, gates and baggage belts.
+- **Airport:** a board of departures and arrivals for the nearest airport or any airport you search for. It opens at "now" with the next 15 flights, with the airport's local times and delays. "Show earlier flights" and "Show later flights" add 30 more each time, from 12 hours back to about 11 hours ahead; the earlier ones are fetched only when asked for. Tap a flight for gates, terminals, baggage belt and aircraft.
 - **Settings:** the server address and token, the search distance, the data sources' remaining requests (including the monthly flight schedule units), a fake location for testing, and the location status.
 
 The position is read only while the app is open, and it is sent only to the server you set up. Nothing runs in the background. The server is [ScanUp-Backend](https://github.com/golamwasy/ScanUp-Backend), and the API the app talks to is described in its `API_CONTRACT.md`.

@@ -38,11 +38,14 @@ extension FeedProblem {
     }
 }
 
-/// The Airport tab's board, with the state of its latest refresh.
+/// The Airport tab's board, with the state of its latest refresh. The coming flights arrive first; the earlier ones
+/// are fetched only when someone scrolls back to them.
 struct BoardFeed {
     var airport: BoardAirport?
-    var departures: [ScheduledFlight] = []
-    var arrivals: [ScheduledFlight] = []
+    private(set) var departures: [ScheduledFlight] = []
+    private(set) var arrivals: [ScheduledFlight] = []
+    private var coming: (departures: [ScheduledFlight], arrivals: [ScheduledFlight]) = ([], [])
+    private var past: (departures: [ScheduledFlight], arrivals: [ScheduledFlight]) = ([], [])
     /// When the server fetched the data (the older half of the board).
     var dataTime: Date?
     /// When the app got its last answer.
@@ -52,6 +55,27 @@ struct BoardFeed {
     var failures = 0
     /// Why the server's lists are old, short or empty.
     var notice: ScheduleNotice?
+    /// Whether the 12 hours before now have been fetched, and what became of asking for them.
+    private(set) var pastLoaded = false
+    var isLoadingPast = false
+    var pastProblem: String?
+
+    mutating func setComing(departures: [ScheduledFlight], arrivals: [ScheduledFlight]) {
+        coming = (departures, arrivals)
+        merge()
+    }
+
+    mutating func setPast(departures: [ScheduledFlight], arrivals: [ScheduledFlight]) {
+        past = (departures, arrivals)
+        pastLoaded = true
+        pastProblem = nil
+        merge()
+    }
+
+    private mutating func merge() {
+        departures = BoardPaging.merged(coming.departures, past.departures, direction: .departures)
+        arrivals = BoardPaging.merged(coming.arrivals, past.arrivals, direction: .arrivals)
+    }
 
     var hasLoaded: Bool { updatedAt != nil }
     var showsProblem: Bool { FeedProblem.takesOver(problem, hasLoaded: hasLoaded, failures: failures) }

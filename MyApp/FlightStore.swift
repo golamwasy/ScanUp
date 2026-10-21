@@ -38,13 +38,15 @@ final class FlightStore {
     private static let longestServerWait = 300.0
     /// Boards change slowly and cost units of a small allowance, so they refresh every few minutes at most.
     private static let boardIntervalRange = 60.0...1800.0
-    private static let defaultBoardInterval = 600.0
+    private static let defaultBoardInterval = 1200.0
 
     let location = LocationFetcher()
     private let client = BackendClient()
     @ObservationIgnored private var lastInteraction = Date()
     @ObservationIgnored private var nearbyFailures = 0
     @ObservationIgnored private var boardFailures = 0
+    /// Seconds the server asked the app to wait between board refreshes.
+    @ObservationIgnored private var boardEvery = 1200.0
     /// The refresh that is running, if any. A second call waits for it instead of starting another or being skipped,
     /// and it is not cancelled when the person changes tab, so its answer is not wasted.
     @ObservationIgnored private var nearbyTask: Task<Duration, Never>?
@@ -184,8 +186,13 @@ final class FlightStore {
 
     /// Refreshes the Airport board. Returns how long to wait before the next refresh.
     @discardableResult
-    func refreshBoard() async -> Duration {
+    func refreshBoard(force: Bool = false) async -> Duration {
         guard isConfigurationLoaded else { return Self.boardInterval(nil) }
+        // A board that is still fresh is not asked for again (opening the tab again, or the loop starting over).
+        if !force, board.problem == nil, let updated = board.updatedAt {
+            let left = boardEvery - Date().timeIntervalSince(updated)
+            if left > 1 { return .seconds(left) }
+        }
         if let running = boardTask { return await running.value }
         let task = Task { () -> Duration in
             let wait = await performBoard()
@@ -206,25 +213,26 @@ final class FlightStore {
             let configuration: BackendConfiguration
             if let requestedAirport, let code = requestedAirport.icao ?? requestedAirport.iata {
                 guard let saved = self.configuration else { throw StoreError.notConfigured }
-                (configuration, request) = (saved, BoardRequest(code: code, latitude: nil, longitude: nil))
+                (configuration, request) = (saved, BoardRequest(code: code, latitude: nil, longitude: nil, part: "coming"))
             } else {
                 let (saved, position) = try await prepare()
                 (configuration, request) = (saved, BoardRequest(code: nil, latitude: position.coordinate.latitude,
-                                                                longitude: position.coordinate.longitude))
+                                                                longitude: position.coordinate.longitude, part: "coming"))
             }
             let response = try await client.board(request, configuration: configuration)
             // Another airport or position was picked while this was on its way, so it is the wrong board.
             guard requestedAirport == chosenAirport, requestedPlace == testLocation else { return .seconds(1) }
             board.airport = response.airport
-            board.departures = Self.unique(response.departures)
-            board.arrivals = Self.unique(response.arrivals)
+            board.setComing(departures: Self.unique(response.departures), arrivals: Self.unique(response.arrivals))
             board.dataTime = response.updatedAt
             board.updatedAt = Date()
             board.notice = response.notice.flatMap(ScheduleNotice.init(rawValue:))
             board.problem = nil
             board.failures = 0
             boardFailures = 0
-            return Self.boardInterval(response.refreshAfterS)
+            let wait = Self.boardInterval(response.refreshAfterS)
+            boardEvery = Double(wait.components.seconds)
+            return wait
         } catch is CancellationError {
             return Self.boardInterval(nil)
         } catch {
@@ -234,6 +242,34 @@ final class FlightStore {
             let wait = Self.backOff(after: error, failures: &boardFailures)
             board.failures = boardFailures
             return wait
+        }
+    }
+
+    /// Fetches the 12 hours before now for the board on screen, once: they barely change, so they are not refreshed.
+    /// Costs 2 schedule units the first time (the server keeps them for an hour).
+    func loadEarlierBoard() async {
+        guard board.airport != nil, !board.pastLoaded, !board.isLoadingPast else { return }
+        let requestedAirport = chosenAirport
+        let requestedPlace = testLocation
+        board.isLoadingPast = true
+        board.pastProblem = nil
+        defer { if requestedAirport == chosenAirport, requestedPlace == testLocation { board.isLoadingPast = false } }
+        do {
+            let request: BoardRequest
+            let configuration: BackendConfiguration
+            if let code = board.airport?.icao {
+                guard let saved = self.configuration else { throw StoreError.notConfigured }
+                (configuration, request) = (saved, BoardRequest(code: code, latitude: nil, longitude: nil, part: "past"))
+            } else {
+                return
+            }
+            let response = try await client.board(request, configuration: configuration)
+            guard requestedAirport == chosenAirport, requestedPlace == testLocation else { return }
+            board.setPast(departures: Self.unique(response.departures), arrivals: Self.unique(response.arrivals))
+        } catch is CancellationError {
+        } catch {
+            guard requestedAirport == chosenAirport, requestedPlace == testLocation else { return }
+            board.pastProblem = error.localizedDescription
         }
     }
 

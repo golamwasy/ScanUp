@@ -101,12 +101,16 @@ struct FlightClock: View {
             Text(end.scheduled?.clock ?? "—")
                 .font(.system(.headline, design: .rounded))
                 .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
                 .strikethrough(end.isLate, color: .secondary)
                 .foregroundStyle(end.isLate ? .secondary : .primary)
             if end.isLate, let expected = end.expected {
                 Text(expected.clock)
                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
                     .foregroundStyle(Theme.warning)
             }
         }
@@ -125,7 +129,6 @@ struct FlightRow: View {
         Button(action: open) {
             HStack(spacing: 12) {
                 FlightClock(end: end)
-                    .frame(width: 52, alignment: .leading)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(other.shortName)
                         .font(.headline)

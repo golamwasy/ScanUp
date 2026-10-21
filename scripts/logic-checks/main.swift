@@ -153,6 +153,27 @@ MainActor.assumeIsolated {
         check(BoardRow.rows(for: [a1, undated], direction: .departures, now: noon).map(\.id).last == undated.id, "a flight without a time goes to the end, not away")
         check(FlightStatus.departed.isDone(on: .departures) && !FlightStatus.departed.isDone(on: .arrivals), "a flight in the air is past on departures, still coming on arrivals")
         check(FlightStatus.enRoute.isDone(on: .departures) && !FlightStatus.enRoute.isDone(on: .arrivals) && FlightStatus.arrived.isDone(on: .arrivals), "en route and arrived")
+        // Paging: a first page from "now", earlier and later flights added by the step, merged lists without repeats.
+        var day: [ScheduledFlight] = []
+        for hour in 0..<24 {
+            let utc = String(format: "2026-10-21T%02d:00:00Z", hour)
+            day.append(try BackendClient.decode(ScheduledFlight.self, from: Data(flightJSON(number: "AY \(100 + hour)", utc: utc, local: utc).utf8)))
+        }
+        let nine = ISO8601DateFormatter().date(from: "2026-10-21T09:30:00Z")!
+        let first = BoardPaging.range(in: day, direction: .departures, now: nine, window: .init())
+        check(first == 10..<24, "from now on, the first page: \(first)")
+        check(BoardPaging.range(in: day, direction: .departures, now: nine, window: .init(earlier: 3, later: 0)) == 7..<24, "three earlier flights added")
+        check(BoardPaging.range(in: day, direction: .departures, now: nine, window: .init(earlier: 30, later: 30)) == 0..<24, "never past the ends")
+        let dawn = ISO8601DateFormatter().date(from: "2026-10-21T00:30:00Z")!
+        check(BoardPaging.range(in: day, direction: .departures, now: dawn, window: .init()) == 1..<16, "fifteen from now: \(BoardPaging.range(in: day, direction: .departures, now: dawn, window: .init()))")
+        check(BoardPaging.range(in: day, direction: .departures, now: dawn, window: .init(later: 5)) == 1..<21, "five more later")
+        let night = ISO8601DateFormatter().date(from: "2026-10-22T03:00:00Z")!
+        check(BoardPaging.range(in: day, direction: .departures, now: night, window: .init()) == 9..<24, "nothing to come: the last flights")
+        check(BoardPaging.range(in: [], direction: .departures, now: nine, window: .init()) == 0..<0, "an empty board")
+        let overlap = BoardPaging.merged(Array(day[5..<12]), Array(day[0..<8]), direction: .departures)
+        check(overlap.map(\.number) == day[0..<12].map(\.number), "two lists merged in time order, once each")
+        let nilTime = try BackendClient.decode(ScheduledFlight.self, from: Data(#"{"number":"AY 3","status":"expected","departure":{"airport":{"name":"H"}},"arrival":{"airport":{"name":"T"}}}"#.utf8))
+        check(BoardPaging.merged([nilTime], Array(day[0..<2]), direction: .departures).last?.id == nilTime.id, "no time goes last")
         check(BoardRow.rows(for: [], direction: .departures, now: noon).map(\.id) == ["now"], "an empty board is only the now line")
 
         // A found aircraft carries the times of its flight.

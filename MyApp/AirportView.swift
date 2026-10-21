@@ -8,6 +8,10 @@ struct AirportView: View {
     @State private var direction = BoardDirection.departures
     @State private var showingPicker = false
     @State private var openFlight: ScheduledFlight?
+    /// How many flights have been added around the first page, for each list.
+    @State private var windows: [BoardDirection: BoardPaging.Window] = [:]
+    /// A flight to keep on screen after earlier flights were added above it.
+    @State private var keepInView: String?
 
     private var board: BoardFeed { store.board }
     private var flights: [ScheduledFlight] { board.flights(direction) }
@@ -22,7 +26,7 @@ struct AirportView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 16) {
-                    header
+                    header.id("top")
                     if board.hasLoaded, !(board.departures.isEmpty && board.arrivals.isEmpty) {
                         Picker("List", selection: $direction) {
                             ForEach(BoardDirection.allCases) { direction in
@@ -45,16 +49,20 @@ struct AirportView: View {
             .background(SkyBackground())
             .refreshable {
                 store.noteInteraction()
-                await store.refreshBoard()
+                await store.refreshBoard(force: true)
             }
             .onScrollPhaseChange { _, _ in store.noteInteraction() }
             .scrollIndicators(.hidden)
-            // Opens at "now", with a few earlier flights above it, when a board arrives and when the list changes.
-            .onChange(of: scrollKey) { _, _ in
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(150))
-                    withAnimation(.smooth) { proxy.scrollTo("now", anchor: UnitPoint(x: 0.5, y: 0.22)) }
-                }
+            // Another airport starts from "now" again, at the top.
+            .onChange(of: board.airport?.icao) { _, _ in
+                windows = [:]
+                proxy.scrollTo("top", anchor: .top)
+            }
+            // The list grew upwards: stay on the flight that was first, instead of jumping to the new top.
+            .onChange(of: keepInView) { _, id in
+                guard let id else { return }
+                proxy.scrollTo(id, anchor: .top)
+                keepInView = nil
             }
         }
         .sheet(isPresented: $showingPicker) {
@@ -72,14 +80,6 @@ struct AirportView: View {
             .presentationDetents([.medium, .large])
         }
     }
-
-    private struct ScrollKey: Equatable {
-        let airport: String?
-        let loaded: Bool
-        let direction: BoardDirection
-    }
-
-    private var scrollKey: ScrollKey { ScrollKey(airport: board.airport?.icao, loaded: board.hasLoaded, direction: direction) }
 
     private var header: some View {
         VStack(spacing: 10) {
@@ -125,7 +125,7 @@ struct AirportView: View {
             .font(.subheadline.weight(.medium))
             .tint(Theme.accent)
             StatusLine(summary: "", board: board, isPaused: store.isPaused, resume: store.noteInteraction) {
-                Task { await store.refreshBoard() }
+                Task { await store.refreshBoard(force: true) }
             }
             if store.chosenAirport == nil {
                 TestLocationNotice(place: store.testLocation)
@@ -148,7 +148,7 @@ struct AirportView: View {
     private var content: some View {
         if board.showsProblem, let problem = board.problem, board.departures.isEmpty, board.arrivals.isEmpty {
             ProblemCard(problem: problem, failureTitle: String(localized: "Couldn’t load flights"), openSettingsTab: openSettingsTab) {
-                Task { await store.refreshBoard() }
+                Task { await store.refreshBoard(force: true) }
             }
         } else if !board.hasLoaded {
             SkeletonList()
@@ -167,11 +167,22 @@ struct AirportView: View {
         }
     }
 
+    private var window: BoardPaging.Window { windows[direction] ?? BoardPaging.Window() }
+
     private var list: some View {
         let now = Date()
         let today = AirportClock.day(now, offsetSeconds: offsetSeconds)
+        let range = BoardPaging.range(in: flights, direction: direction, now: now, window: window)
+        let shown = Array(flights[range])
+        let rows = BoardRow.rows(for: shown, direction: direction, now: now)
         return LazyVStack(alignment: .leading, spacing: 8) {
-            ForEach(BoardRow.rows(for: flights, direction: direction, now: now)) { row in
+            if range.lowerBound > 0 || !board.pastLoaded {
+                MoreButton(title: String(localized: "Show earlier flights"), systemImage: "arrow.up",
+                           isLoading: board.isLoadingPast, problem: board.pastProblem) {
+                    showEarlier(from: range, firstID: shown.first?.id)
+                }
+            }
+            ForEach(rows) { row in
                 switch row {
                 case .day(let day):
                     Text(AirportClock.dayLabel(day, today: today))
@@ -188,10 +199,65 @@ struct AirportView: View {
                         store.noteInteraction()
                         openFlight = flight
                     }
+                    .id(flight.id)
+                }
+            }
+            if range.upperBound < flights.count {
+                MoreButton(title: String(localized: "Show later flights"), systemImage: "arrow.down", isLoading: false, problem: nil) {
+                    store.noteInteraction()
+                    withAnimation(Theme.spring) { windows[direction, default: .init()].later += BoardPaging.step }
                 }
             }
         }
         .animation(Theme.spring, value: direction)
+    }
+
+    /// Adds earlier flights above the list. Flights already fetched are shown at once; when they run out, the 12 hours
+    /// before now are fetched first (one request, kept by the server for an hour).
+    private func showEarlier(from range: Range<Int>, firstID: String?) {
+        store.noteInteraction()
+        Task {
+            if range.lowerBound < BoardPaging.step, !board.pastLoaded {
+                await store.loadEarlierBoard()
+                guard board.pastLoaded else { return }
+            }
+            withAnimation(Theme.spring) { windows[direction, default: .init()].earlier += BoardPaging.step }
+            keepInView = firstID
+        }
+    }
+}
+
+/// "Show earlier flights" and "Show later flights" at the two ends of a board.
+private struct MoreButton: View {
+    let title: String
+    let systemImage: String
+    let isLoading: Bool
+    let problem: String?
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Button(action: action) {
+                HStack(spacing: 8) {
+                    if isLoading { ProgressView().controlSize(.small) } else { Image(systemName: systemImage) }
+                    Text(title)
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Theme.card, in: Capsule())
+                .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            .disabled(isLoading)
+            if let problem {
+                Text(problem)
+                    .font(.caption)
+                    .foregroundStyle(Theme.warning)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -203,6 +269,8 @@ struct AirportPicker: View {
     @State private var results: [Place] = []
     @State private var isSearching = false
     @State private var problem: String?
+    /// Answers already had in this sheet, so typing a word again (or erasing a letter) does not ask the server again.
+    @State private var answers: [String: [Place]] = [:]
 
     var body: some View {
         NavigationStack {
@@ -260,12 +328,20 @@ struct AirportPicker: View {
                     problem = nil
                     return
                 }
+                let key = text.lowercased()
+                if let known = answers[key] {
+                    results = known
+                    problem = nil
+                    return
+                }
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
                 isSearching = true
                 defer { isSearching = false }
                 do {
-                    results = try await store.searchAirports(text)
+                    let found = try await store.searchAirports(text)
+                    answers[key] = found
+                    results = found
                     problem = nil
                 } catch is CancellationError {
                 } catch {
