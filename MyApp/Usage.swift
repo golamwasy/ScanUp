@@ -42,8 +42,36 @@ struct Usage: Decodable, Equatable {
         var isRunningLow: Bool { fractionUsed > 0.8 }
     }
 
+    /// One of the other sources of airport boards, asked when the main one cannot answer.
+    struct BoardProvider: Decodable, Equatable, Identifiable {
+        let name: String
+        let enabled: Bool
+        /// What the numbers count: "queries" or "usd".
+        let unit: String
+        let usedLast30Days: Double
+        let budget: Double
+        let remaining: Double
+
+        var id: String { name }
+        var isMoney: Bool { unit == "usd" }
+        var fractionUsed: Double {
+            guard budget > 0 else { return 0 }
+            return min(1, max(0, (budget - remaining) / budget))
+        }
+        /// Less than a fifth left.
+        var isRunningLow: Bool { fractionUsed > 0.8 }
+
+        /// "989 left" for queries, "$4.30 left" for money.
+        var remainingText: String {
+            let amount = isMoney ? remaining.formatted(.currency(code: "USD").presentation(.narrow)) : Int(remaining.rounded(.down)).formatted()
+            return String(localized: "\(amount) left")
+        }
+    }
+
     let adsbLol: AdsbLol
     let opensky: OpenSky
     /// Absent from servers older than the schedule features.
     let flightSchedules: FlightSchedules?
+    /// Absent from servers older than the extra board sources.
+    let boardProviders: [BoardProvider]?
 }

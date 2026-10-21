@@ -141,11 +141,13 @@ struct BoardResponse: Decodable {
     let updatedAt: Date
     let refreshAfterS: Int?
     let notice: String?
+    /// Who the flights came from, for the credits. Empty from servers older than the extra board sources.
+    let sources: [String]
     let departures: [ScheduledFlight]
     let arrivals: [ScheduledFlight]
 
     private enum CodingKeys: String, CodingKey {
-        case airport, updatedAt, refreshAfterS, notice, departures, arrivals
+        case airport, updatedAt, refreshAfterS, notice, sources, departures, arrivals
     }
 
     /// One flight that does not read as expected is left out, not the whole board.
@@ -155,6 +157,7 @@ struct BoardResponse: Decodable {
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         refreshAfterS = try container.decodeIfPresent(Int.self, forKey: .refreshAfterS)
         notice = try container.decodeIfPresent(String.self, forKey: .notice)
+        sources = (try? container.decodeIfPresent([String].self, forKey: .sources)) ?? []
         departures = try container.decode(LossyList<ScheduledFlight>.self, forKey: .departures).elements
         arrivals = try container.decode(LossyList<ScheduledFlight>.self, forKey: .arrivals).elements
     }
@@ -207,6 +210,17 @@ struct AirportSearchResponse: Decodable {
 }
 
 /// Why schedules are old, short or missing, as the server says it.
+/// The credit the flight schedule providers ask for, naming the ones that supplied the flights on screen.
+enum ScheduleCredit {
+    /// "Flight schedules by AeroDataBox and AirLabs." AeroDataBox alone when the server named no source.
+    static func text(for sources: [String]) -> String {
+        let names = sources.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0.count <= 40 }
+        let shown = names.isEmpty ? ["AeroDataBox"] : Array(names.prefix(3))
+        return String(localized: "Flight schedules by \(ListFormatter.localizedString(byJoining: shown)).")
+    }
+}
+
 enum ScheduleNotice: String {
     case notConfigured = "not_configured"
     case allowanceUsed = "allowance_used"
