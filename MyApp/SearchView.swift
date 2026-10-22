@@ -231,8 +231,9 @@ private struct FlowRow: View {
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) { capsules }
-            VStack(alignment: .leading, spacing: 8) { capsules }
+            VStack(spacing: 8) { capsules }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var capsules: some View {
