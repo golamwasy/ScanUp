@@ -162,11 +162,20 @@ struct SearchView: View {
 
     private var results: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(String(localized: "On the radar now"), systemImage: "dot.radiowaves.left.and.right")
+            let viaFlightAware = model.aircraft.contains(where: \.isFromFlightAware)
+            Label(viaFlightAware ? String(localized: "Tracked by FlightAware") : String(localized: "On the radar now"),
+                  systemImage: viaFlightAware ? "globe" : "dot.radiowaves.left.and.right")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(Theme.positive)
                 .textCase(.uppercase)
                 .padding(.leading, 4)
+            if viaFlightAware {
+                let age = model.aircraft.compactMap(\.positionAgeText).first
+                Text("No receiver hears this flight right now, so its position comes from FlightAware\(age.map { ", reported \($0)" } ?? ""). It can be a few minutes behind.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+            }
             ForEach(model.aircraft) { item in
                 AircraftCard(aircraft: item, isExpanded: expanded.contains(item.id)) {
                     store.noteInteraction()
@@ -206,7 +215,7 @@ struct SearchView: View {
     }
 
     private var footnote: some View {
-        Text("Only planes that are flying and heard by ADS-B receivers can be found. Each search uses up to 3 of the day’s ADSB.lol requests. Flight times by AeroDataBox.")
+        Text("Planes that are flying and heard by ADS-B receivers are found. Over deserts and the sea no receiver hears them, and then the position can come from FlightAware, a few minutes old. Each search uses up to 3 of the day’s ADSB.lol requests. Flight times by AeroDataBox.")
             .font(.footnote)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity)

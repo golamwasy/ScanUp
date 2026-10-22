@@ -25,6 +25,21 @@ struct Aircraft: Decodable, Identifiable, Equatable {
     let onGround: Bool
     /// When the flight left and is due, in a search answer. Absent in the nearby list and when the server has none.
     @Lenient var schedule: ScheduledFlight?
+    /// "flightaware" when no receiver hears the plane and its position comes from FlightAware. Absent for a receiver.
+    var source: String? = nil
+    /// How old that position was when the server answered, in seconds.
+    var positionAgeS: Int? = nil
+
+    var isFromFlightAware: Bool { source == "flightaware" }
+
+    /// "less than a minute ago", "5 min ago" or "1 h 10 min ago", for a position reported by FlightAware.
+    var positionAgeText: String? {
+        guard isFromFlightAware, let positionAgeS else { return nil }
+        let minutes = max(0, positionAgeS) / 60
+        if minutes < 1 { return String(localized: "less than a minute ago") }
+        if minutes < 60 { return String(localized: "\(minutes) min ago") }
+        return String(localized: "\(minutes / 60) h \(minutes % 60) min ago")
+    }
 }
 
 struct NearbyResponse: Decodable {
