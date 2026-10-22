@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor @Observable
 final class AircraftSearchModel {
     private static let recentKey = "recentAircraftSearches"
-    private static let recentLimit = 6
+    private static let recentLimit = 3
 
     var text = ""
     private(set) var aircraft: [Aircraft] = []
@@ -17,7 +17,7 @@ final class AircraftSearchModel {
     private(set) var problem: FeedProblem?
     /// Shown when the text cannot be a flight number, callsign or registration, instead of asking the server.
     private(set) var hint: String?
-    private(set) var recent: [String] = UserDefaults.standard.stringArray(forKey: recentKey) ?? []
+    private(set) var recent: [String] = Array((UserDefaults.standard.stringArray(forKey: recentKey) ?? []).prefix(recentLimit))
     /// Counts the searches, so only the newest one may write its answer: an older one that finishes late is ignored.
     private var generation = 0
 
