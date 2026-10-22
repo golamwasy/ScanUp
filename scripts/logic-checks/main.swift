@@ -137,6 +137,21 @@ MainActor.assumeIsolated {
         check(named.sources == ["AeroDataBox", "AirLabs"], "the sources of a board")
         let oddSources = try BackendClient.decode(BoardResponse.self, from: Data(boardJSON.replacingOccurrences(of: #""departures":"#, with: #""sources":[1,2],"departures":"#).utf8))
         check(oddSources.sources.isEmpty && oddSources.departures.count == 1, "sources that do not read as text do not spoil the board")
+        let heardJSON = #"{"aircraft":[{"id":"hex","callsign":"FIN1","distance_m":900,"bearing_deg":10,"on_ground":false}]}"#
+        let heardPlane = try BackendClient.decode(NearbyResponse.self, from: Data(heardJSON.utf8)).aircraft[0]
+        check(!heardPlane.isFromFlightAware && heardPlane.positionAgeText == nil, "a plane a receiver hears has no FlightAware label")
+        let farJSON = #"{"source":"flightaware","refresh_after_s":60,"aircraft":[{"id":"fa-bbc305-1","callsign":"BBC305","flight_number":"BG 305","origin":"Dhaka (DAC)","origin_code":"DAC","destination":"Rome (FCO)","destination_code":"FCO","type":"B789","registration":"S2-AJX","altitude_ft":36000,"speed_kt":472,"heading_deg":298,"distance_m":5100000,"bearing_deg":112,"on_ground":false,"source":"flightaware","position_age_s":95}]}"#
+        let far = try BackendClient.decode(NearbyResponse.self, from: Data(farJSON.utf8))
+        check(far.refreshAfterS == 60 && far.aircraft[0].isFromFlightAware && far.aircraft[0].positionAgeS == 95, "a plane found through FlightAware")
+        check(far.aircraft[0].positionAgeText == "1 min ago" && far.aircraft[0].elevationDeg == nil, "its age is in minutes and nothing is above the horizon")
+        func ageText(_ seconds: Int) -> String? {
+            var plane = far.aircraft[0]
+            plane.positionAgeS = seconds
+            return plane.positionAgeText
+        }
+        check(ageText(20) == "less than a minute ago" && ageText(0) == "less than a minute ago", "a fresh position")
+        check(ageText(5 * 60 + 10) == "5 min ago" && ageText(70 * 60) == "1 h 10 min ago", "older positions")
+        check(ageText(-30) == "less than a minute ago", "a clock that is a little off does not give a negative age")
         check(ScheduleCredit.text(for: []) == "Flight schedules by AeroDataBox.", "no source named: AeroDataBox")
         check(ScheduleCredit.text(for: ["AeroDataBox", "AirLabs"]) == "Flight schedules by AeroDataBox and AirLabs.", "two sources")
         check(ScheduleCredit.text(for: ["AeroDataBox", "AirLabs", "FlightAware"]).contains("FlightAware"), "three sources")

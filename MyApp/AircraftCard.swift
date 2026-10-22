@@ -156,6 +156,10 @@ struct AircraftCard: View {
         facts.append(Fact(symbol: "location.north.line", title: aircraft.onGround || aircraft.elevationDeg == nil ? String(localized: "From you") : String(localized: "Where to look"),
                           value: "\(aircraft.compass) · \(Format.distance(aircraft.distanceM))",
                           detail: aircraft.elevationDeg.map { "\(aircraft.skyPosition ?? "") · \($0)°" }))
+        if aircraft.isFromFlightAware {
+            facts.append(Fact(symbol: "globe", title: String(localized: "Position from"), value: "FlightAware",
+                              detail: aircraft.positionAgeText.map { String(localized: "reported \($0)") }))
+        }
         return facts
     }
 }
